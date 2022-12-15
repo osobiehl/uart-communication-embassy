@@ -1,0 +1,9 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+# replace STM32L552ZETxQ with your chip as listed in `probe-run --list-chips`
+runner = "probe-run --chip  STM32L552ZETxQ --connect-under-reset"
+
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[env]
+DEFMT_LOG = "trace"
