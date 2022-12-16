@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Blinky",
+            "request": "launch",
+            "type": "cortex-debug",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceFolder}/target/thumbv8m.main-none-eabihf/debug/uart",
+            "svdFile": "${workspaceFolder}/stm32l552.svd",
+            "servertype": "openocd",
+            // "gdbPath": "gdb", 
+            "configFiles": [
+                "st_nucleo_l5.cfg",
+                // "interface/stlink.cfg"
+            ],
+            "preLaunchTask": "Build binary",
+            "preLaunchCommands": [
+                "monitor init",
+                "monitor reset init",
+                "monitor halt",
+                "monitor flash write_image erase ./target/thumbv8m.main-none-eabihf/debug/uart.bin 0x08000000"
+            ],
+            "postLaunchCommands": [] // Don't stop before at the first line
+        }
+    ]
+}
