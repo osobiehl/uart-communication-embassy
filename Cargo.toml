@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "embassy-stm32l5-examples"
+name = "embassy-communication"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 

@@ -1,1 +1,1 @@
-[{"node":"RNG","expanded":true,"format":0,"pinned":true},{"node":"RNG.RNG_SR","expanded":true,"format":0}]
+[{"node":"RCC","expanded":true,"format":0,"pinned":true},{"node":"RCC.PLLSAI1CFGR","expanded":true,"format":0},{"node":"RCC.AHB3ENR","expanded":true,"format":0},{"node":"RCC.AHB2SMENR","expanded":true,"format":0},{"node":"RNG","expanded":true,"format":0,"pinned":true},{"node":"RNG.RNG_CR","expanded":true,"format":0},{"node":"RNG.RNG_SR","expanded":true,"format":0}]
