@@ -1,21 +1,14 @@
-#![no_std]
-#![no_main]
-#![feature(type_alias_impl_trait)]
 pub mod init {
-    use cortex_m::interrupt::enable;
-    use defmt::*;
-    use embassy_executor::Spawner;
-    use embassy_stm32::pac::{
-        rcc,
-        rng::{self, Rng as RawRng},
-        RCC, RNG,
-    };
+
+    use crate::locator::locator;
+    use embassy_stm32::pac::RCC;
     use embassy_stm32::rcc::{
         AHBPrescaler, APBPrescaler, ClockSrc, MSIRange, PLLClkDiv, PLLMul, PLLSAI1PDiv,
-        PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv, RccPeripheral,
+        PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv,
     };
     use embassy_stm32::rng::Rng;
-    use embassy_stm32::Config;
+    use embassy_stm32::usart::{Config as UartConfig, Uart};
+    use embassy_stm32::{interrupt, Config};
     use {defmt_rtt as _, panic_probe as _};
     const MSI_RANGE: MSIRange = MSIRange::Range7; // 8 MHz;
 
@@ -93,14 +86,14 @@ pub mod init {
         RCC.cr().modify(|w| w.set_pllsai1on(true));
     }
 
-    pub fn initialize() -> embassy_stm32::Peripherals {
+    pub fn initialize() -> locator::Locator {
         let mut config = Config::default();
         config.rcc.mux = ClockSrc::MSI(MSI_RANGE);
         config.rcc.ahb_pre = AHBPrescaler::NotDivided;
         config.rcc.hsi48 = false;
 
-        config.rcc.apb1_pre = APBPrescaler::Div16;
-        config.rcc.apb2_pre = APBPrescaler::Div16;
+        config.rcc.apb1_pre = APBPrescaler::NotDivided;
+        config.rcc.apb2_pre = APBPrescaler::NotDivided;
 
         let peripherals = embassy_stm32::init(config);
         unsafe {
@@ -113,6 +106,57 @@ pub mod init {
                 Some(PLLClkDiv::Div2),
             );
         }
-        return peripherals;
+
+        // initialize lpuart
+        let irq_lpuart = interrupt::take!(LPUART1);
+        let mut config_lpuart: UartConfig = Default::default();
+        config_lpuart.baudrate = 115200;
+
+        let lpuart = Uart::new(
+            peripherals.LPUART1,
+            peripherals.PG8,
+            peripherals.PG7,
+            irq_lpuart,
+            peripherals.DMA1_CH1,
+            peripherals.DMA1_CH2,
+            config_lpuart,
+        );
+
+        let irq_usart3 = interrupt::take!(USART3);
+        let mut config_usart3: UartConfig = Default::default();
+        config_usart3.baudrate = 115200;
+
+        let usart3 = Uart::new(
+            peripherals.USART3,
+            peripherals.PC11,
+            peripherals.PC10,
+            irq_usart3,
+            peripherals.DMA2_CH1,
+            peripherals.DMA2_CH2,
+            config_usart3,
+        );
+
+        let irq_usart2 = interrupt::take!(USART2);
+        let mut config_usart2: UartConfig = Default::default();
+        config_usart2.baudrate = 115200;
+
+        let usart2 = Uart::new(
+            peripherals.USART2,
+            peripherals.PA3,
+            peripherals.PA2,
+            irq_usart2,
+            peripherals.DMA2_CH3,
+            peripherals.DMA2_CH4,
+            config_usart2,
+        );
+
+        let loc: locator::Locator = locator::Locator {
+            lpuart: Some(lpuart),
+            rng: Some(Rng::new(peripherals.RNG)),
+            usart3: Some(usart3),
+            usart2: Some(usart2),
+        };
+
+        return loc;
     }
 }

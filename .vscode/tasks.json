@@ -20,8 +20,8 @@
             "args": [
                 "--output-target",
                 "binary",
-                "./target/thumbv8m.main-none-eabihf/debug/uart",
-                "./target/thumbv8m.main-none-eabihf/debug/uart.bin"
+                "./target/thumbv8m.main-none-eabihf/debug/embassy-communication",
+                "./target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin"
             ],
             "problemMatcher": [
                 "$rustc"

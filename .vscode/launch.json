@@ -9,7 +9,7 @@
             "request": "launch",
             "type": "cortex-debug",
             "cwd": "${workspaceRoot}",
-            "executable": "${workspaceFolder}/target/thumbv8m.main-none-eabihf/debug/uart",
+            "executable": "${workspaceFolder}/target/thumbv8m.main-none-eabihf/debug/embassy-communication",
             "svdFile": "${workspaceFolder}/stm32l552.svd",
             "servertype": "openocd",
             // "gdbPath": "gdb", 
@@ -22,7 +22,7 @@
                 "monitor init",
                 "monitor reset init",
                 "monitor halt",
-                "monitor flash write_image erase ./target/thumbv8m.main-none-eabihf/debug/uart.bin 0x08000000"
+                "monitor flash write_image erase ./target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin 0x08000000"
             ],
             "postLaunchCommands": [] // Don't stop before at the first line
         }
