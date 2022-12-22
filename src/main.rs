@@ -52,13 +52,13 @@ async fn main(spawner: Spawner) -> ! {
     let usart2_sender = usart2_channel.sender();
     let usart2_receiver = usart2_channel.receiver();
 
-    // this order works
-    unwrap!(spawner.spawn(ping_task(usart2_tx, usart2_receiver)));
-    unwrap!(spawner.spawn(pong_task(usart3_tx, usart3_receiver)));
-
     // spawn receive tasks:
     unwrap!(spawner.spawn(usart2_read_task(usart2_rx, usart2_sender)));
     unwrap!(spawner.spawn(usart3_read_task(usart3_rx, usart3_sender)));
+
+    // this does not work
+    unwrap!(spawner.spawn(ping_task(usart2_tx, usart2_receiver)));
+    unwrap!(spawner.spawn(pong_task(usart3_tx, usart3_receiver)));
 }
 
 #[embassy_executor::task]
