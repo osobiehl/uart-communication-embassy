@@ -1,5 +1,4 @@
 pub mod serial {
-
     use embassy_stm32::usart::{BasicInstance, UartRx, UartTx};
 
     #[derive(Debug)]

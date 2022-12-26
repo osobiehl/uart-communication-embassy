@@ -7,6 +7,7 @@
 mod communication;
 mod init;
 mod locator;
+// mod uart_ip;
 use core::future;
 use core::str;
 
@@ -16,8 +17,9 @@ use embassy_executor::Spawner;
 use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, USART2, USART3};
 use embassy_stm32::usart::{UartRx, UartTx};
 use embassy_sync::{
-    blocking_mutex::raw::NoopRawMutex,
+    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
     channel::{Channel, Receiver, Sender},
+    signal::Signal,
 };
 use embassy_time::{Duration, Timer};
 use heapless::String;
@@ -26,6 +28,8 @@ use {defmt_rtt as _, panic_probe as _};
 
 type Frame = String<128>;
 const NUM_FRAMES: usize = 16;
+type ReadySignal = Signal<CriticalSectionRawMutex, ()>;
+
 // type Channel = channel::Channel<blocking_mutex::NoopMutex<Frame>, Frame, NUM_FRAMES>;
 
 #[embassy_executor::main]
@@ -52,30 +56,35 @@ async fn main(spawner: Spawner) -> ! {
     let usart2_sender = usart2_channel.sender();
     let usart2_receiver = usart2_channel.receiver();
 
-    // spawn receive tasks:
-    unwrap!(spawner.spawn(usart2_read_task(usart2_rx, usart2_sender)));
-    unwrap!(spawner.spawn(usart3_read_task(usart3_rx, usart3_sender)));
+    static USART2_READY: ReadySignal = Signal::new();
+    static USART3_READY: ReadySignal = Signal::new();
 
-    // this does not work
-    unwrap!(spawner.spawn(ping_task(usart2_tx, usart2_receiver)));
-    unwrap!(spawner.spawn(pong_task(usart3_tx, usart3_receiver)));
+    let usart3_task_signal: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+
+    // spawn receive tasks:
+    unwrap!(spawner.spawn(usart2_read_task(usart2_rx, usart2_sender, &USART2_READY)));
+    unwrap!(spawner.spawn(usart3_read_task(usart3_rx, usart3_sender, &USART3_READY)));
+
+    unwrap!(spawner.spawn(ping_task(usart2_tx, usart2_receiver, &USART2_READY)));
+    unwrap!(spawner.spawn(pong_task(usart3_tx, usart3_receiver, &USART3_READY)));
 }
 
 #[embassy_executor::task]
-
 async fn usart2_read_task(
     usart: UartRx<'static, USART2, DMA2_CH4>,
     sender: Sender<'static, NoopRawMutex, Frame, NUM_FRAMES>,
+    signal: &'static ReadySignal,
 ) {
-    read_subroutine(usart, sender).await;
+    read_subroutine(usart, sender, signal).await;
 }
 
 #[embassy_executor::task]
 async fn usart3_read_task(
     usart: UartRx<'static, USART3, DMA2_CH2>,
     sender: Sender<'static, NoopRawMutex, Frame, NUM_FRAMES>,
+    signal: &'static ReadySignal,
 ) {
-    read_subroutine(usart, sender).await;
+    read_subroutine(usart, sender, signal).await;
 }
 
 /**
@@ -84,12 +93,12 @@ async fn usart3_read_task(
 async fn read_subroutine<R: serial::Read>(
     mut usart: R,
     sender: Sender<'static, NoopRawMutex, Frame, NUM_FRAMES>,
+    signal: &'static ReadySignal,
 ) {
     let mut buf: [u8; 128] = [0; 128];
     loop {
-        info!("awaiting bytes in receive task ... ");
+        signal.signal(());
         let bytes_read = usart.read_until_idle(&mut buf).await.unwrap();
-        info!("received: {:?}", &bytes_read);
         let x = str::from_utf8(&mut buf[..bytes_read]).unwrap();
         let string: Frame = heapless::String::from(x);
         unwrap!(sender.try_send(string));
@@ -100,10 +109,11 @@ async fn read_subroutine<R: serial::Read>(
 async fn pong_task(
     mut usart: UartTx<'static, USART3, DMA2_CH1>,
     receiver: Receiver<'static, NoopRawMutex, Frame, NUM_FRAMES>,
+    signal: &'static ReadySignal,
 ) {
+    signal.wait().await;
     loop {
         usart.write(b"PONG!").await.unwrap();
-        info!("wrote pong!");
         let received = receiver.recv().await;
 
         info!("received {} in pong task", received.as_str());
@@ -114,12 +124,14 @@ async fn pong_task(
 async fn ping_task(
     mut usart: UartTx<'static, USART2, DMA2_CH3>,
     receiver: Receiver<'static, NoopRawMutex, Frame, NUM_FRAMES>,
+    signal: &'static ReadySignal,
 ) {
+    signal.wait().await;
+
     loop {
-        usart.write(b"PING!").await.unwrap();
-        info!("wrote ping!");
         let received = receiver.recv().await;
         info!("received {} in ping task", received.as_str());
+        usart.write(b"PING!").await.unwrap();
         Timer::after(Duration::from_millis(1000)).await;
     }
 }

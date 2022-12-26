@@ -12,7 +12,7 @@ embassy-executor = { version = "0.1.0", git = "https://github.com/embassy-rs/emb
 embassy-time = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
 embassy-stm32 = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["nightly", "defmt", "unstable-pac", "stm32l552ze", "time-driver-any", "exti", "unstable-traits", "memory-x"]  }
 embassy-usb = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
-embassy-net = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "nightly", "tcp", "dhcpv4", "medium-ethernet", "pool-16"] }
+embassy-net = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "nightly", "tcp", "dhcpv4", "medium-ethernet", "pool-16", "udp"] }
 embassy-futures = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
 usbd-hid = "0.6.0"
 
