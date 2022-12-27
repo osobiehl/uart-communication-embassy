@@ -7,7 +7,7 @@
 mod communication;
 mod init;
 mod locator;
-// mod uart_ip;
+mod uart_ip;
 use core::future;
 use core::str;
 
