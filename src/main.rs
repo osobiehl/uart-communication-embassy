@@ -3,14 +3,17 @@
 #![feature(type_alias_impl_trait)]
 #![feature(future_join)]
 #![feature(async_fn_in_trait)]
+#![feature(return_position_impl_trait_in_trait)]
 
+mod async_timer;
 mod communication;
 mod init;
 mod locator;
-mod uart_ip;
+// mod uart_ip;
 use core::future;
 use core::str;
 
+use async_timer::timer::{AsyncBasicTimer, TimerFuture};
 use communication::serial;
 use defmt::*;
 use embassy_executor::Spawner;
@@ -21,7 +24,7 @@ use embassy_sync::{
     channel::{Channel, Receiver, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use heapless::String;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -36,6 +39,13 @@ type ReadySignal = Signal<CriticalSectionRawMutex, ()>;
 async fn main(spawner: Spawner) -> ! {
     let mut locator = init::init::initialize();
 
+    let mut tim = locator.tim15.unwrap();
+    tim.duration(Duration::from_micros(0xf0))
+        .expect("timer start failed!")
+        .await;
+    tim.duration(Duration::from_micros(256))
+        .expect("second timer init failed")
+        .await;
     // let mut _rng = locator.rng.take().expect("taking rng peripheral failed!");
     // let _lpuart = locator.lpuart.take().expect("taking lpuart failed!");
     let usart3 = locator.usart3.take().expect("taking usart3 failed!");

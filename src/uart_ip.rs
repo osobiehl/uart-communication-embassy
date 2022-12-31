@@ -1,17 +1,17 @@
-pub mod IP {
-
-    use crate::communication::serial::{Read, ReadError, Write, WriteError};
+use crate::communication::serial::{Read, ReadError, Write, WriteError};
+    use defmt::*;
     use core::borrow::BorrowMut;
     use core::sync::atomic::{AtomicBool, Ordering};
     use core::task::{Context, Waker};
+    use core::future::poll_fn;
     use embassy_futures::{select::select, select::Either};
-    use embassy_net::device::{Device, LinkState, RxToken, TxToken};
-    use embassy_stm32::pac::bdma::Ch;
+    use embassy_net_driver_channel::{Device, driver, State, RxToken, TxToken, StateRunner, RxRunner, TxRunner, Runner};
     use embassy_sync::{
         blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
         channel::{Channel, Receiver, Sender},
         signal::Signal,
     };
+
 
     use heapless::pool::{self, Box, Init, Pool};
     pub type FrameBox = Box<Frame<IP_FRAME_SIZE>, Init>;
@@ -25,15 +25,9 @@ pub mod IP {
         R: Read,
         W: Write,
     {
-        pool: &'static FramePool<IP_FRAME_SIZE>,
-        tx_request_sender:
-            Sender<'static, CriticalSectionRawMutex, FrameBox, TRANSMIT_CHANNEL_SIZE>,
-        tx_request_receiver:
-            Receiver<'static, CriticalSectionRawMutex, FrameBox, TRANSMIT_CHANNEL_SIZE>,
-        rx_sender: Sender<'static, NoopRawMutex, UartRxToken, RECEIVE_SENDER_SIZE>,
-        write: W,
+        runner: Runner<'static, IP_FRAME_SIZE>, 
         read: R,
-        rx_enabled: AtomicBool,
+        write: W,
     }
 
     impl<R, W> AsyncHalfDuplexUart<R, W>
@@ -41,36 +35,56 @@ pub mod IP {
         R: Read,
         W: Write,
     {
-        pub async fn new(
-            pool: &'static FramePool<IP_FRAME_SIZE>,
-            tx_request_sender: Sender<
-                'static,
-                CriticalSectionRawMutex,
-                FrameBox,
-                TRANSMIT_CHANNEL_SIZE,
-            >,
-            tx_request_receiver: Receiver<
-                'static,
-                CriticalSectionRawMutex,
-                FrameBox,
-                TRANSMIT_CHANNEL_SIZE,
-            >,
-            rx_sender: Sender<'static, NoopRawMutex, FrameBox, RECEIVE_SENDER_SIZE>,
-            write: W,
-            read: R,
-        ) -> Self {
-            Self {
-                pool,
-                tx_request_receiver,
-                tx_request_sender,
-                rx_sender,
-                write,
-                read,
-                rx_enabled: AtomicBool::new(false),
+        pub async fn new(read: R, write: W, runner: Runner<'static, IP_FRAME_SIZE>) -> Self {
+            return Self{
+                read, write, runner
             }
         }
+
+        async fn wait_for_tx_or_rx_reenable(&self) {
+            let wait_for_rx_reenable = poll_fn(|ctx| 
+                self.runner.poll_rx_buf(ctx));
+
+    
+                match select(wait_for_rx_reenable, self.runner.tx_buf()).await {
+                    Either::First( buf ) => self.wait_for_tx_or_rx(),
+                    Either::Second() => todo!()
+    
+                }
+
+        }
+        // TODO: construct a future for transmit that checks state. If it had a collision
+        // it should wait on a timer. If not, it should wait on the TX runner
+        async fn wait_for_tx_message_or_rx_received(& mut self, rx_buf: &mut [u8]) {
+            match select(self.read.read_until_idle(rx_buf), self.runner.tx_buf() ).await {
+                Either::First(read_result) => self.on_rx_done(read_result),
+                Either::Second(to_send) => self.write.write(to_send).await
+            }
+
+        }
+
+        async fn transmit_or_wait_timer(){
+
+        }
+
+        async fn write_bytes(&mut self, to_send: &mut u8) {
+            match self.write.write(to_send).await {
+
+            }
+        }
+
+        fn on_rx_done(&mut self, res: Result<usize, ReadError>) {
+            match res {
+                Ok(bytes_read) => self.runner.rx_done(bytes_read),
+                Err(e) => info!("UART READ ERROR!")
+            }
+
+        }
         pub async fn start(&mut self) -> ! {
+
             loop {
+
+                
                 let mut current_rx_frame = self.pool.allocate();
                 if current_rx_frame.is_none() {
                     self.disable_rx();
@@ -165,6 +179,7 @@ pub mod IP {
             let r = F(&mut self.value.0);
             self.sender.send(self.value);
             r
+
         }
     }
-}
+

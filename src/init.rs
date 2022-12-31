@@ -1,5 +1,5 @@
 pub mod init {
-
+    use crate::async_timer::timer::AsyncBasicTimer;
     use crate::locator::locator;
     use embassy_stm32::pac::RCC;
     use embassy_stm32::rcc::{
@@ -7,6 +7,7 @@ pub mod init {
         PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv,
     };
     use embassy_stm32::rng::Rng;
+    use embassy_stm32::time::Hertz;
     use embassy_stm32::usart::{Config as UartConfig, Uart};
     use embassy_stm32::{interrupt, Config};
     use {defmt_rtt as _, panic_probe as _};
@@ -150,7 +151,10 @@ pub mod init {
             config_usart2,
         );
 
+        let timer = AsyncBasicTimer::new(peripherals.TIM5, interrupt::take!(TIM5), Hertz::mhz(1));
+
         let loc: locator::Locator = locator::Locator {
+            tim15: Some(timer),
             lpuart: Some(lpuart),
             rng: Some(Rng::new(peripherals.RNG)),
             usart3: Some(usart3),
