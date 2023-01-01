@@ -11,6 +11,7 @@ use crate::communication::serial::{Read, ReadError, Write, WriteError};
         channel::{Channel, Receiver, Sender},
         signal::Signal,
     };
+    use crate::async_timer::timer::AsyncTimer;
 
 
     use heapless::pool::{self, Box, Init, Pool};
@@ -20,24 +21,65 @@ use crate::communication::serial::{Read, ReadError, Write, WriteError};
         R: Read,
         W: Write, {}
 
-    pub struct AsyncHalfDuplexUart<R, W>
+    pub struct AsyncHalfDuplexUart<R, W, T>
     where
         R: Read,
         W: Write,
+        T: AsyncTimer
     {
         runner: Runner<'static, IP_FRAME_SIZE>, 
         read: R,
         write: W,
+        timer: T,
+        backoff_state: BackoffState,
+        
     }
 
-    impl<R, W> AsyncHalfDuplexUart<R, W>
+    pub struct BackoffState{
+        pub in_backoff_state: bool,
+        pub number_backoffs_attempted: usize,
+        pub max_backoffs: usize,
+    }
+    impl Default for BackoffState{
+        fn default() -> Self {
+            Self { in_backoff_state: false, number_backoffs_attempted: 0, max_backoffs: 5 }
+        }
+    }
+    impl BackoffState{
+        pub fn clear(&mut self) {
+            self.in_backoff_state = false;
+            self.number_backoffs_attempted = 0;
+        }
+    }
+
+    struct TxHandler<T, W> where T: AsyncTimer, W: Write 
+    {
+        timer: T,
+        write: W,
+        tx_runner: TxRunner<'static, IP_FRAME_SIZE>,
+        backoff_state: BackoffState
+    }
+
+    impl<T, W> TxHandler where T: AsyncTimer, W: Write {
+        pub fn new(timer: T, write: w, tx_runner: TxRunner<'static, IP_FRAME_SIZE> ) -> Self {
+            Self{timer, write, tx_runner, backoff_state: Default::default()}
+        }
+        pub async fn transmit(&mut self) -> WriteError {
+            
+        }
+    }
+
+
+    impl<R, W, T> AsyncHalfDuplexUart<R, W, T>
     where
         R: Read,
         W: Write,
+        T: AsyncTimer
     {
-        pub async fn new(read: R, write: W, runner: Runner<'static, IP_FRAME_SIZE>) -> Self {
+        pub async fn new(read: R, write: W, timer: T, runner: Runner<'static, IP_FRAME_SIZE>) -> Self {
+            let (state, rx, tx  ) = runner.split();
             return Self{
-                read, write, runner
+                read, write, runner, timer, backoff_state: Default::default()
             }
         }
 
@@ -63,8 +105,8 @@ use crate::communication::serial::{Read, ReadError, Write, WriteError};
 
         }
 
-        async fn transmit_or_wait_timer(){
-
+        async fn transmit(&mut self){
+            
         }
 
         async fn write_bytes(&mut self, to_send: &mut u8) {

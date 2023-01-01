@@ -17,6 +17,7 @@ use async_timer::timer::{AsyncBasicTimer, TimerFuture};
 use communication::serial;
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_futures::select::{select, Either};
 use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, USART2, USART3};
 use embassy_stm32::usart::{UartRx, UartTx};
 use embassy_sync::{
@@ -36,16 +37,34 @@ type ReadySignal = Signal<CriticalSectionRawMutex, ()>;
 // type Channel = channel::Channel<blocking_mutex::NoopMutex<Frame>, Frame, NUM_FRAMES>;
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) {
     let mut locator = init::init::initialize();
+    info!("starting...");
+    let mut tim7 = locator.tim7.unwrap();
+    let mut tim = locator.tim6.unwrap();
+    let mut tim7f = tim7
+        .duration(Duration::from_millis(70))
+        .expect("could not start tim7");
 
-    let mut tim = locator.tim15.unwrap();
-    tim.duration(Duration::from_micros(0xf0))
-        .expect("timer start failed!")
-        .await;
+    loop {
+        match select(
+            tim.duration(Duration::from_micros(0x1f0)).unwrap(),
+            &mut tim7f,
+        )
+        .await
+        {
+            Either::First(x) => info!("tim6 done!"),
+            Either::Second(x) => break,
+        }
+    }
+
+    info!("tim7 done!");
+
     tim.duration(Duration::from_micros(256))
         .expect("second timer init failed")
         .await;
+    info!("second timer done!");
+
     // let mut _rng = locator.rng.take().expect("taking rng peripheral failed!");
     // let _lpuart = locator.lpuart.take().expect("taking lpuart failed!");
     let usart3 = locator.usart3.take().expect("taking usart3 failed!");

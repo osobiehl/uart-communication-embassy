@@ -151,10 +151,11 @@ pub mod init {
             config_usart2,
         );
 
-        let timer = AsyncBasicTimer::new(peripherals.TIM5, interrupt::take!(TIM5), Hertz::mhz(1));
-
+        let timer = AsyncBasicTimer::new(peripherals.TIM6, interrupt::take!(TIM6), Hertz::mhz(1));
+        let timer2 = AsyncBasicTimer::new(peripherals.TIM7, interrupt::take!(TIM7), Hertz::hz(1));
         let loc: locator::Locator = locator::Locator {
-            tim15: Some(timer),
+            tim7: Some(timer2),
+            tim6: Some(timer),
             lpuart: Some(lpuart),
             rng: Some(Rng::new(peripherals.RNG)),
             usart3: Some(usart3),
