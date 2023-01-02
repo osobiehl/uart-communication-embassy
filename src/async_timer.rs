@@ -19,15 +19,19 @@ pub mod timer {
     use static_cell::StaticCell;
 
     pub trait AsyncTimer {
-        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<impl Future + 'a>;
+        type AsyncOutput<'a>: Future<Output = ()> + 'a
+        where
+            Self: 'a;
+        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>>;
     }
 
     impl<INS, INT> AsyncTimer for AsyncBasicTimer<INS, INT>
     where
-        INS: Basic16bitInstance,
-        INT: InterruptExt,
+        INS: Basic16bitInstance + 'static,
+        INT: InterruptExt + 'static,
     {
-        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<impl Future + 'a> {
+        type AsyncOutput<'a> = TimerFuture<'a, INS, INT>;
+        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>> {
             AsyncBasicTimer::duration(self, duration)
         }
     }
@@ -57,11 +61,11 @@ pub mod timer {
             if false == self.0.run_once.load(Ordering::Relaxed) {
                 self.0.context = Some(cx.waker().clone());
                 unsafe {
-                    self.0
-                        .interrupt_instance
-                        .set_handler_context(mem::transmute(
-                            self.0 as *const AsyncBasicTimer<INS, INT>,
-                        ));
+                    // self.0
+                    //     .interrupt_instance
+                    //     .set_handler_context(mem::transmute(
+                    //         self.0 as *const AsyncBasicTimer<INS, INT>,
+                    //     ));
                 }
                 self.0.timer_instance.start();
                 self.0.run_once.store(true, Ordering::Relaxed);
@@ -119,7 +123,6 @@ pub mod timer {
     {
         //safety: this runs in interrupt context and single threaded
         unsafe fn handler(arg: *mut ()) {
-            info!("handler!!@!");
             let cls: &mut Self = mem::transmute(arg);
             cls.interrupt_instance.unpend();
             cls.expired.store(true, Ordering::Relaxed);
@@ -143,10 +146,7 @@ pub mod timer {
             interrupt_instance.set_handler(Self::handler);
             interrupt_instance.set_priority(Priority::P0);
             interrupt_instance.enable();
-            info!(" enabled interrupt: {}", interrupt_instance.is_enabled());
-            info!("current frequency: {}", INS::frequency().0);
             timer_instance.set_frequency(frequency);
-            info!("new frequency: {}", INS::frequency().0);
             timer_instance.reset();
             timer_instance.enable_update_interrupt(true);
 
@@ -177,10 +177,8 @@ pub mod timer {
             let freq: u64 = (INS::frequency().0 / Self::prescaler() as u32)
                 .try_into()
                 .ok()?;
-            info!("{:?}", &freq);
             const ONE_MILLION: u64 = 1_000_000;
             let __ticks = (duration.as_micros() * freq / ONE_MILLION);
-            info!("{:?}", __ticks);
 
             let ticks: Option<u16> = (duration.as_micros() * freq / ONE_MILLION).try_into().ok();
             return ticks;

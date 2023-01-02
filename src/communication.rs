@@ -11,6 +11,7 @@ pub mod serial {
         async fn write<'a>(&'a mut self, buf: &'a [u8]) -> Result<(), WriteError>
         where
             Self: Sized;
+        fn is_line_free(&self) -> bool;
     }
 
     #[derive(Debug)]
@@ -46,6 +47,9 @@ pub mod serial {
                 Ok(_) => Ok(()),
                 Err(_) => Err(WriteError::FramingError),
             }
+        }
+        fn is_line_free(&self) -> bool {
+            true
         }
     }
 }
