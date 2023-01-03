@@ -22,7 +22,8 @@ pub mod timer {
         type AsyncOutput<'a>: Future<Output = ()> + 'a
         where
             Self: 'a;
-        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>>;
+        fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>>;
+        fn get_handle<'a>(&'a mut self) -> Option<Self::AsyncOutput<'a>>;
     }
 
     impl<INS, INT> AsyncTimer for AsyncBasicTimer<INS, INT>
@@ -31,8 +32,11 @@ pub mod timer {
         INT: InterruptExt + 'static,
     {
         type AsyncOutput<'a> = TimerFuture<'a, INS, INT>;
-        async fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>> {
+        fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>> {
             AsyncBasicTimer::duration(self, duration)
+        }
+        fn get_handle<'a>(&'a mut self) -> Option<Self::AsyncOutput<'a>> {
+            AsyncBasicTimer::get_handle(self)
         }
     }
 
@@ -45,6 +49,7 @@ pub mod timer {
         interrupt_instance: INT,
         run_once: AtomicBool,
         expired: AtomicBool,
+        initialized: AtomicBool,
         context: Option<core::task::Waker>,
     }
 
@@ -71,33 +76,13 @@ pub mod timer {
                 self.0.run_once.store(true, Ordering::Relaxed);
                 Poll::Pending
             } else if self.0.expired.load(Ordering::Relaxed) {
+                self.0.initialized.store(false, Ordering::Relaxed);
                 Poll::Ready(())
             } else {
                 Poll::Pending
             }
         }
     }
-
-    // impl<'a, INS, INT> Future for PersistentTimerFuture<'a, INS, INT>
-    // where
-    //     INS: Basic16bitInstance,
-    //     INT: InterruptExt,
-    // {
-    //     type Output = ();
-    //     fn poll(
-    //         mut self: core::pin::Pin<&mut Self>,
-    //         cx: &mut core::task::Context<'_>,
-    //     ) -> core::task::Poll<Self::Output> {
-
-    //     self.0.context = Some(cx.waker().clone());
-
-    //     if self.0.expired.load(Ordering::Relaxed) {
-    //             Poll::Ready(())
-    //         } else {
-    //             Poll::Pending
-    //         }
-    //     }
-    // }
 
     pub struct TimerFuture<'a, INS, INT>(&'a mut AsyncBasicTimer<INS, INT>)
     where
@@ -156,10 +141,12 @@ pub mod timer {
                 run_once: AtomicBool::new(false),
                 context: None,
                 expired: AtomicBool::new(false),
+                initialized: AtomicBool::new(false),
             }
         }
         #[allow(unused)]
         pub fn duration<'a>(&'a mut self, duration: Duration) -> Option<TimerFuture<'a, INS, INT>> {
+            self.initialized.store(true, Ordering::Relaxed);
             self.expired.store(false, Ordering::Relaxed);
             self.run_once = AtomicBool::new(false);
             self.timer_instance.reset();
@@ -171,6 +158,13 @@ pub mod timer {
             }
 
             Some(TimerFuture(self))
+        }
+
+        pub fn get_handle<'a>(&'a mut self) -> Option<TimerFuture<'a, INS, INT>> {
+            if self.initialized.load(Ordering::Relaxed) {
+                return Some(TimerFuture(self));
+            }
+            None
         }
 
         fn to_ticks(duration: Duration) -> Option<u16> {
