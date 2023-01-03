@@ -9,8 +9,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use defmt::*;
 use embassy_futures::select::select;
 use embassy_net_driver_channel::{Runner, RxRunner, State, StateRunner, TxRunner};
-use embassy_stm32::peripherals::RNG;
-use embassy_stm32::rng::Rng;
+
 use rand_core::RngCore;
 
 pub type CommunicationState = State<IP_FRAME_SIZE, RECEIVE_SENDER_SIZE, TRANSMIT_CHANNEL_SIZE>;

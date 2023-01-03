@@ -1,12 +1,8 @@
 pub mod service {
-    use crate::async_timer::timer::AsyncBasicTimer;
-    use crate::backoff_handler::backoff::DummyRng;
-    use crate::communication::serial::{Read, Write};
+
     use crate::locator::locator::{HardwareLocator, Locator};
     use crate::uart_ip::{AsyncDevice, AsyncHalfDuplexUart, CommunicationState};
-    use embassy_net::{
-        device, ConfigStrategy, IpCidr, Ipv4Address, Ipv4Cidr, Stack, StackResources,
-    };
+    use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, Stack, StackResources};
     use embassy_net_driver::Driver;
     use heapless::Vec;
     use rand_core::RngCore;

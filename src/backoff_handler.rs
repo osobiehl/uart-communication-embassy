@@ -1,8 +1,7 @@
 pub mod backoff {
     use crate::async_timer::timer::AsyncTimer;
     use defmt::*;
-    use embassy_stm32::peripherals::RNG;
-    use embassy_stm32::rng::{Error, Rng};
+
     use embassy_time::Duration;
     use rand_core::{impls, RngCore};
 
@@ -50,7 +49,7 @@ pub mod backoff {
                 self.state.clear();
                 return Err(());
             } else {
-                let to_wait = self.random_component();
+                let to_wait = self.calculate_backoff();
                 self.timer
                     .duration(Duration::from_micros(to_wait as u64))
                     .expect("could not start backoff timer!");
@@ -66,7 +65,7 @@ pub mod backoff {
             Err(())
         }
 
-        pub async fn calculate_backoff(&mut self) -> usize {
+        pub fn calculate_backoff(&mut self) -> usize {
             return self.exponential_component() + self.random_component() as usize;
         }
         fn exponential_component(&self) -> usize {

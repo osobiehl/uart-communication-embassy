@@ -64,13 +64,7 @@ pub mod timer {
         ) -> core::task::Poll<Self::Output> {
             if false == self.0.run_once.load(Ordering::Relaxed) {
                 self.0.context = Some(cx.waker().clone());
-                unsafe {
-                    // self.0
-                    //     .interrupt_instance
-                    //     .set_handler_context(mem::transmute(
-                    //         self.0 as *const AsyncBasicTimer<INS, INT>,
-                    //     ));
-                }
+
                 self.0.timer_instance.start();
                 self.0.run_once.store(true, Ordering::Relaxed);
                 Poll::Pending
@@ -124,7 +118,7 @@ pub mod timer {
             unsafe { INS::regs().psc().read().psc() + 1 }
         }
 
-        pub fn new(mut timer_instance: INS, mut interrupt_instance: INT, frequency: Hertz) -> Self {
+        pub fn new(mut timer_instance: INS, interrupt_instance: INT, frequency: Hertz) -> Self {
             <INS as RccPeripheral>::enable();
             <INS as RccPeripheral>::reset();
             interrupt_instance.set_handler(Self::handler);
@@ -171,7 +165,7 @@ pub mod timer {
                 .try_into()
                 .ok()?;
             const ONE_MILLION: u64 = 1_000_000;
-            let __ticks = (duration.as_micros() * freq / ONE_MILLION);
+            let __ticks = duration.as_micros() * freq / ONE_MILLION;
 
             let ticks: Option<u16> = (duration.as_micros() * freq / ONE_MILLION).try_into().ok();
             return ticks;
