@@ -1,23 +1,16 @@
-use crate::async_timer::timer::{AsyncTimer, TimerFuture};
-use crate::backoff_handler::backoff::{BackoffHandler, BackoffState};
-use crate::communication::serial::{Read, ReadError, Write, WriteError};
-use core::borrow::BorrowMut;
+use crate::async_timer::timer::AsyncTimer;
+use crate::backoff_handler::backoff::BackoffHandler;
+use crate::communication::serial::{Read, Write, WriteError};
+
 use core::future;
-use core::future::poll_fn;
+
 use core::sync::atomic::{AtomicBool, Ordering};
-use core::task::{Context, Waker};
+
 use defmt::*;
-use embassy_futures::{select::select, select::Either};
-use embassy_net_driver_channel::{
-    driver, Device, Runner, RxRunner, RxToken, State, StateRunner, TxRunner, TxToken,
-};
+use embassy_futures::select::select;
+use embassy_net_driver_channel::{Runner, RxRunner, State, StateRunner, TxRunner};
 use embassy_stm32::peripherals::RNG;
-use embassy_stm32::rng::{Error, Rng};
-use embassy_sync::{
-    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
-    channel::{Channel, Receiver, Sender},
-    signal::Signal,
-};
+use embassy_stm32::rng::Rng;
 
 pub type CommunicationState = State<IP_FRAME_SIZE, RECEIVE_SENDER_SIZE, TRANSMIT_CHANNEL_SIZE>;
 struct TxHandler<T, W>

@@ -2,21 +2,20 @@ pub mod timer {
     // use embassy_stm32::pac::TIM15;
     use defmt::*;
     use embassy_cortex_m::interrupt::Priority;
-    use embassy_stm32::peripherals::TIM15;
+
     use embassy_stm32::rcc::low_level::RccPeripheral;
     use embassy_stm32::time::Hertz;
-    use embassy_stm32::timer::{self, Basic16bitInstance, GeneralPurpose16bitInstance};
+    use embassy_stm32::timer::Basic16bitInstance;
 
-    use core::future::{Future, IntoFuture};
-    use core::marker::PhantomData;
-    use core::mem::{self, transmute, MaybeUninit};
+    use core::future::Future;
+
+    use core::mem::{self};
     use core::sync::atomic::AtomicBool;
     use core::sync::atomic::Ordering;
-    use core::task::{Context, Poll, Waker};
-    use cortex_m::{self, interrupt};
+    use core::task::Poll;
+
     use embassy_stm32::interrupt::InterruptExt;
     use embassy_time::Duration;
-    use static_cell::StaticCell;
 
     pub trait AsyncTimer {
         type AsyncOutput<'a>: Future<Output = ()> + 'a

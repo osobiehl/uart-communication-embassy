@@ -10,32 +10,32 @@ mod communication;
 mod init;
 mod locator;
 mod uart_ip;
-use core::future;
+
 use core::str;
 mod backoff_handler;
-use async_timer::timer::{AsyncBasicTimer, TimerFuture};
+use async_timer::timer::AsyncBasicTimer;
 use communication::serial;
 use core::fmt::Write;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+
 use embassy_net::udp::UdpSocket;
 use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, PacketMetadata, Stack, StackResources};
-use embassy_net_driver::Driver;
-use embassy_net_driver_channel::{self, Device, State};
-use embassy_stm32::interrupt::{TIM6 as TIM6I, TIM7 as TIM7I};
+
+use embassy_net_driver_channel::{self, Device};
+use embassy_stm32::interrupt::TIM6 as TIM6I;
 use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, TIM6, USART2, USART3};
-use embassy_stm32::rng::Rng;
+
 use embassy_stm32::usart::{UartRx, UartTx};
 use embassy_sync::{
     blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
     channel::{Channel, Receiver, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Timer};
 use heapless::String;
 use heapless::Vec;
-use rand_core::RngCore;
+
 use static_cell::StaticCell;
 use uart_ip::{AsyncHalfDuplexUart, CommunicationState, IP_FRAME_SIZE};
 use {defmt_rtt as _, panic_probe as _};
