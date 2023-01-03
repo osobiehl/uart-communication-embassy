@@ -9,7 +9,7 @@ pub mod timer {
 
     use core::future::Future;
 
-    use core::mem::{self};
+    use core::mem;
     use core::sync::atomic::AtomicBool;
     use core::sync::atomic::Ordering;
     use core::task::Poll;

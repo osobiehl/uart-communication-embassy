@@ -4,7 +4,7 @@ pub mod backoff {
     use embassy_stm32::peripherals::RNG;
     use embassy_stm32::rng::{Error, Rng};
     use embassy_time::Duration;
-    use rand_core::RngCore;
+    use rand_core::{impls, RngCore};
 
     pub struct BackoffState {
         pub in_backoff_state: bool,
@@ -27,14 +27,14 @@ pub mod backoff {
         }
     }
 
-    pub struct BackoffHandler<T: AsyncTimer> {
+    pub struct BackoffHandler<T: AsyncTimer, R: RngCore> {
         timer: T,
-        rng: Rng<'static, RNG>,
+        rng: R,
         state: BackoffState,
     }
 
-    impl<T: AsyncTimer> BackoffHandler<T> {
-        pub fn new(timer: T, rng: Rng<'static, RNG>) -> Self {
+    impl<T: AsyncTimer, R: RngCore> BackoffHandler<T, R> {
+        pub fn new(timer: T, rng: R) -> Self {
             Self {
                 timer,
                 rng,
@@ -81,6 +81,22 @@ pub mod backoff {
 
         pub fn clear(&mut self) {
             self.state.clear();
+        }
+    }
+
+    pub struct DummyRng {}
+    impl rand_core::RngCore for DummyRng {
+        fn next_u32(&mut self) -> u32 {
+            5
+        }
+        fn next_u64(&mut self) -> u64 {
+            5
+        }
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            impls::fill_bytes_via_next(self, dest)
+        }
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            Ok(self.fill_bytes(dest))
         }
     }
 }

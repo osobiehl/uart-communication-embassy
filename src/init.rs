@@ -1,6 +1,7 @@
 pub mod init {
     use crate::async_timer::timer::AsyncBasicTimer;
     use crate::locator::locator;
+    use crate::service::service::CoreServiceLocator;
     use embassy_stm32::pac::RCC;
     use embassy_stm32::rcc::{
         AHBPrescaler, APBPrescaler, ClockSrc, MSIRange, PLLClkDiv, PLLMul, PLLSAI1PDiv,
@@ -87,7 +88,7 @@ pub mod init {
         RCC.cr().modify(|w| w.set_pllsai1on(true));
     }
 
-    pub fn initialize() -> locator::Locator {
+    pub fn initialize() -> impl CoreServiceLocator {
         let mut config = Config::default();
         config.rcc.mux = ClockSrc::MSI(MSI_RANGE);
         config.rcc.ahb_pre = AHBPrescaler::NotDivided;
@@ -150,16 +151,19 @@ pub mod init {
             peripherals.DMA2_CH4,
             config_usart2,
         );
-
+        let (u2tx, u2rx) = usart2.split();
+        let (u3tx, u3rx) = usart3.split();
         let timer = AsyncBasicTimer::new(peripherals.TIM6, interrupt::take!(TIM6), Hertz::mhz(1));
-        let timer2 = AsyncBasicTimer::new(peripherals.TIM7, interrupt::take!(TIM7), Hertz::hz(1));
-        let loc: locator::Locator = locator::Locator {
+        let timer2 = AsyncBasicTimer::new(peripherals.TIM7, interrupt::take!(TIM7), Hertz::mhz(1));
+        let loc = locator::HardwareLocator {
             tim7: Some(timer2),
             tim6: Some(timer),
-            lpuart: Some(lpuart),
+            dummy_rng: Some(crate::backoff_handler::backoff::DummyRng {}),
+            usart2_rx: Some(u2rx),
+            usart2_tx: Some(u2tx),
+            usart3_rx: Some(u3rx),
+            usart3_tx: Some(u3tx),
             rng: Some(Rng::new(peripherals.RNG)),
-            usart3: Some(usart3),
-            usart2: Some(usart2),
         };
 
         return loc;

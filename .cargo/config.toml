@@ -4,6 +4,7 @@ runner = "probe-run --chip  STM32L552ZETxQ --connect-under-reset"
 
 [build]
 target = "thumbv8m.main-none-eabihf"
+rustflags=["-Clink-args=-Map=./target/MAPFILE.map"]
 
 [env]
 DEFMT_LOG = "trace"

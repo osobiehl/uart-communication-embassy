@@ -11,30 +11,28 @@ use embassy_futures::select::select;
 use embassy_net_driver_channel::{Runner, RxRunner, State, StateRunner, TxRunner};
 use embassy_stm32::peripherals::RNG;
 use embassy_stm32::rng::Rng;
+use rand_core::RngCore;
 
 pub type CommunicationState = State<IP_FRAME_SIZE, RECEIVE_SENDER_SIZE, TRANSMIT_CHANNEL_SIZE>;
-struct TxHandler<T, W>
+struct TxHandler<T, W, R>
 where
     T: AsyncTimer,
     W: Write,
+    R: RngCore,
 {
     write: W,
     tx_runner: TxRunner<'static, IP_FRAME_SIZE>,
-    backoff_handler: BackoffHandler<T>,
+    backoff_handler: BackoffHandler<T, R>,
     in_backoff: AtomicBool,
 }
 
-impl<T, W> TxHandler<T, W>
+impl<T, W, R> TxHandler<T, W, R>
 where
     T: AsyncTimer,
     W: Write,
+    R: RngCore,
 {
-    pub fn new(
-        timer: T,
-        write: W,
-        tx_runner: TxRunner<'static, IP_FRAME_SIZE>,
-        rng: Rng<'static, RNG>,
-    ) -> Self {
+    pub fn new(timer: T, write: W, tx_runner: TxRunner<'static, IP_FRAME_SIZE>, rng: R) -> Self {
         Self {
             write,
             tx_runner,
@@ -115,29 +113,31 @@ impl<R: Read> RxHandler<R> {
     }
 }
 
-pub struct AsyncHalfDuplexUart<R, W, T>
+pub struct AsyncHalfDuplexUart<R, W, T, RN>
 where
     R: Read,
     W: Write,
     T: AsyncTimer,
+    RN: RngCore,
 {
-    tx_handler: TxHandler<T, W>,
+    tx_handler: TxHandler<T, W, RN>,
     rx_handler: RxHandler<R>,
     state: StateRunner<'static>,
 }
 
-impl<R, W, T> AsyncHalfDuplexUart<R, W, T>
+impl<R, W, T, RN> AsyncHalfDuplexUart<R, W, T, RN>
 where
     R: Read,
     W: Write,
     T: AsyncTimer,
+    RN: RngCore,
 {
     pub fn new(
         read: R,
         write: W,
         timer: T,
         runner: Runner<'static, IP_FRAME_SIZE>,
-        rng: Rng<'static, RNG>,
+        rng: RN,
     ) -> Self {
         let (state, rx, tx) = runner.split();
         return Self {
@@ -147,10 +147,26 @@ where
         };
     }
 
-    pub async fn start(&mut self) {
+    pub async fn start(&mut self) -> ! {
         loop {
             select(self.tx_handler.transmit(), self.rx_handler.read()).await;
         }
+    }
+}
+
+pub trait AsyncDevice {
+    async fn start(&mut self) -> !;
+}
+
+impl<R, W, T, RN> AsyncDevice for AsyncHalfDuplexUart<R, W, T, RN>
+where
+    R: Read,
+    W: Write,
+    T: AsyncTimer,
+    RN: RngCore,
+{
+    async fn start(&mut self) -> ! {
+        AsyncHalfDuplexUart::start(self).await
     }
 }
 

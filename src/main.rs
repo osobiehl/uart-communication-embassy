@@ -9,18 +9,22 @@ mod async_timer;
 mod communication;
 mod init;
 mod locator;
+mod service;
 mod uart_ip;
 
 use core::str;
+use embassy_net_driver::Driver;
+use locator::locator::Locator;
 mod backoff_handler;
 use async_timer::timer::AsyncBasicTimer;
 use communication::serial;
-use core::fmt::Write;
+use communication::serial::{Read, Write};
+use core::fmt::Write as Writefmt;
 use defmt::*;
 use embassy_executor::Spawner;
-
 use embassy_net::udp::UdpSocket;
 use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, PacketMetadata, Stack, StackResources};
+use rand_core::RngCore;
 
 use embassy_net_driver_channel::{self, Device};
 use embassy_stm32::interrupt::TIM6 as TIM6I;
@@ -37,7 +41,10 @@ use heapless::String;
 use heapless::Vec;
 
 use static_cell::StaticCell;
-use uart_ip::{AsyncHalfDuplexUart, CommunicationState, IP_FRAME_SIZE};
+use uart_ip::{AsyncDevice, CommunicationState, IP_FRAME_SIZE};
+
+use crate::service::service::CoreServiceLocator;
+use crate::uart_ip::AsyncHalfDuplexUart;
 use {defmt_rtt as _, panic_probe as _};
 
 type Frame = String<128>;
@@ -57,70 +64,53 @@ macro_rules! singleton {
 async fn main(spawner: Spawner) {
     let mut locator = init::init::initialize();
     info!("starting...");
-    let state = singleton!(CommunicationState::new());
-    let address: [u8; 6] = [0, 2, 3, 4, 5, 6];
-    let (runner, device) = embassy_net_driver_channel::new(state, address);
-    let usart3 = locator.usart3.take().expect("taking usart3 failed!");
-    let (usart3_tx, usart3_rx) = usart3.split();
-    let tim6 = locator.tim6.unwrap();
-    let mut rng = locator.rng.take().expect("taking rng peripheral failed!");
-    let mut seed = [0; 8];
-    rng.async_fill_bytes(&mut seed).await;
-    let seed = u64::from_le_bytes(seed);
+    let (stack_one, driver_one) = locator
+        .comm_stack_one()
+        .expect("could not initialize first comm stack");
 
-    let uart_driver = AsyncHalfDuplexUart::new(usart3_rx, usart3_tx, tim6, runner, rng);
-    let config = ConfigStrategy::Static(embassy_net::Config {
-        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 69, 2), 24),
-        dns_servers: Vec::new(),
-        gateway: Some(Ipv4Address::new(192, 168, 69, 1)),
-    });
+    let (stack_two, driver_two) = locator
+        .comm_stack_two()
+        .expect("could not start second comm stack");
 
-    let stack = singleton!(Stack::new(
-        device,
-        config,
-        singleton!(StackResources::<1, 2, 8>::new()),
-        seed
-    ));
-    unwrap!(spawner.spawn(uart3_hello_world(stack)));
-    unwrap!(spawner.spawn(net_task_1(stack)));
-    unwrap!(spawner.spawn(uart3_driver_task(uart_driver)));
+    unwrap!(spawner.spawn(hello_world_task(stack_one)));
 
-    let usart2 = locator.usart2.take().expect("taking usart2 failed!");
+    unwrap!(spawner.spawn(net_task_one(stack_one)));
+    unwrap!(spawner.spawn(driver_task_one(driver_one)));
 
-    let (usart2_tx, usart2_rx) = usart2.split();
-
-    static USART2_CHANNEL: StaticCell<Channel<NoopRawMutex, Frame, NUM_FRAMES>> = StaticCell::new();
-    let usart2_channel = USART2_CHANNEL.init(Channel::new());
-
-    let usart2_sender = usart2_channel.sender();
-    let usart2_receiver = usart2_channel.receiver();
-
-    static USART2_READY: ReadySignal = Signal::new();
-
-    // spawn receive tasks:
-    unwrap!(spawner.spawn(usart2_read_task(usart2_rx, usart2_sender, &USART2_READY)));
-
-    unwrap!(spawner.spawn(ping_task(usart2_tx, usart2_receiver, &USART2_READY)));
+    unwrap!(spawner.spawn(net_task_two(stack_two)));
+    unwrap!(spawner.spawn(driver_task_two(driver_two)));
 }
 
+type NetDriverOne = Stack<impl Driver>;
 #[embassy_executor::task]
-async fn net_task_1(stack: &'static Stack<Device<'static, IP_FRAME_SIZE>>) {
+async fn net_task_one(stack: &'static NetDriverOne) {
     stack.run().await;
 }
 
+type DeviceDriverOne = impl AsyncDevice;
+
 #[embassy_executor::task]
-async fn uart3_driver_task(
-    mut task: AsyncHalfDuplexUart<
-        UartRx<'static, USART3, DMA2_CH2>,
-        UartTx<'static, USART3, DMA2_CH1>,
-        AsyncBasicTimer<TIM6, TIM6I>,
-    >,
-) {
+async fn driver_task_one(mut task: DeviceDriverOne) {
     task.start().await;
 }
 
+type NetDriverTwo = Stack<impl Driver>;
 #[embassy_executor::task]
-async fn uart3_hello_world(stack: &'static Stack<Device<'static, IP_FRAME_SIZE>>) {
+async fn net_task_two(stack: &'static NetDriverTwo) {
+    stack.run().await;
+}
+
+type DeviceDriverTwo = impl AsyncDevice;
+
+#[embassy_executor::task]
+async fn driver_task_two(mut task: DeviceDriverTwo) {
+    task.start().await;
+}
+
+type DriverStackHelloWorld = Stack<impl Driver>;
+
+#[embassy_executor::task]
+async fn hello_world_task(stack: &'static DriverStackHelloWorld) {
     let mut rx_meta = [PacketMetadata::EMPTY; 16];
     let mut rx_buffer = [0; 1096];
     let mut tx_meta = [PacketMetadata::EMPTY; 16];
@@ -156,15 +146,6 @@ async fn uart3_hello_world(stack: &'static Stack<Device<'static, IP_FRAME_SIZE>>
     }
 }
 
-#[embassy_executor::task]
-async fn usart2_read_task(
-    usart: UartRx<'static, USART2, DMA2_CH4>,
-    sender: Sender<'static, NoopRawMutex, Frame, NUM_FRAMES>,
-    signal: &'static ReadySignal,
-) {
-    read_subroutine(usart, sender, signal).await;
-}
-
 /**
  * serial::Read is just a wrapper around uart for now
  */
@@ -182,21 +163,5 @@ async fn read_subroutine<R: serial::Read>(
         info!("received: {=[u8]:a}", &buf[..bytes_read]);
         let string: Frame = heapless::String::from(x);
         unwrap!(sender.try_send(string));
-    }
-}
-
-#[embassy_executor::task]
-async fn ping_task(
-    mut usart: UartTx<'static, USART2, DMA2_CH3>,
-    receiver: Receiver<'static, NoopRawMutex, Frame, NUM_FRAMES>,
-    signal: &'static ReadySignal,
-) {
-    signal.wait().await;
-
-    loop {
-        let received = receiver.recv().await;
-        info!("received {} in ping task", received.as_str());
-        usart.write(b"PING!").await.unwrap();
-        Timer::after(Duration::from_millis(1000)).await;
     }
 }
