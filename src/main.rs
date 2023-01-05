@@ -115,12 +115,6 @@ async fn hello_world_task(stack: &'static DriverStackHelloWorld) {
             info!("error: {}", r);
         }
         Timer::after(Duration::from_millis(3000)).await;
-        // if let Ok(s) = core::str::from_utf8(&buf[..n]) {
-        //     info!("ECHO (to {}): {}", ep, s);
-        // } else {
-        //     info!("ECHO (to {}): bytearray len {}", ep, n);
-        // }
-        // socket.send_to(&buf[..n], ep).await.unwrap();
     }
 }
 
@@ -153,13 +147,5 @@ async fn hello_world_response_task(stack: &'static DriverStackResponse) {
             str::from_utf8(&buf[..num_read]).unwrap(),
             endpoint
         );
-
-        // Timer::after(Duration::from_millis(1000)).await;
-        // if let Ok(s) = core::str::from_utf8(&buf[..n]) {
-        //     info!("ECHO (to {}): {}", ep, s);
-        // } else {
-        //     info!("ECHO (to {}): bytearray len {}", ep, n);
-        // }
-        // socket.send_to(&buf[..n], ep).await.unwrap();
     }
 }

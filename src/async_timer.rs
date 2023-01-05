@@ -1,6 +1,6 @@
 pub mod timer {
     // use embassy_stm32::pac::TIM15;
-    use defmt::*;
+
     use embassy_cortex_m::interrupt::Priority;
 
     use embassy_stm32::rcc::low_level::RccPeripheral;
@@ -118,13 +118,25 @@ pub mod timer {
             unsafe { INS::regs().psc().read().psc() + 1 }
         }
 
+        pub fn set_frequency(frequency: Hertz) -> Result<(), ()> {
+            let f = frequency.0;
+            let timer_f = INS::frequency().0;
+            let pclk_ticks_per_timer_freq = timer_f / f;
+            let psc: u16 = (pclk_ticks_per_timer_freq - 1).try_into().map_err(|_| ())?;
+            unsafe {
+                INS::regs().psc().write(|r| r.set_psc(psc));
+            }
+            Ok(())
+        }
+
         pub fn new(mut timer_instance: INS, interrupt_instance: INT, frequency: Hertz) -> Self {
             <INS as RccPeripheral>::enable();
             <INS as RccPeripheral>::reset();
             interrupt_instance.set_handler(Self::handler);
             interrupt_instance.set_priority(Priority::P0);
             interrupt_instance.enable();
-            timer_instance.set_frequency(frequency);
+
+            Self::set_frequency(frequency).expect("unsupported timer frequency!");
             timer_instance.reset();
             timer_instance.enable_update_interrupt(true);
 

@@ -1,29 +1,36 @@
 pub mod uart {
-    use core::cell::{Cell, UnsafeCell};
+
     use core::cmp::min;
     use core::pin::Pin;
+    use core::sync::atomic::{AtomicBool, Ordering};
 
-    use crate::communication::serial::{Read, ReadError, Write, WriteError};
+    use crate::communication::serial::{Read, Write, WriteError};
     use core::mem;
     use defmt::info;
     use embassy_futures::select::{select, Either};
-    use embassy_stm32::i2c::RxDma;
-    use embassy_stm32::usart::{
-        BasicInstance, Config, CtsPin, Error, RtsPin, RxPin, TxPin, Uart, UartRx, UartTx,
-    };
-    use embassy_stm32::{self, Peripheral};
+
+    use embassy_stm32::usart::{BasicInstance, UartRx, UartTx};
+    use embassy_stm32::{self};
 
     use static_cell::StaticCell;
-    pub struct HalfDuplexUartRx<T, RxDma>(*mut UartRx<'static, T, RxDma>)
+    pub struct HalfDuplexUartRx<T, RxDma>
     where
         RxDma: embassy_stm32::usart::RxDma<T>,
-        T: BasicInstance;
+        T: BasicInstance,
+    {
+        ptr: *mut UartRx<'static, T, RxDma>,
+        stolen_signal: &'static AtomicBool,
+    }
 
     impl<'d, T, RxDma> Read for HalfDuplexUartRx<T, RxDma>
     where
         RxDma: embassy_stm32::usart::RxDma<T>,
         T: BasicInstance,
     {
+        /**
+         * read until idle interrupt. If this struct was signalled that rx was stolen,
+         * wait for tx to complete instead and drop this future
+         */
         async fn read_until_idle<'a>(
             &'a mut self,
             buf: &'a mut [u8],
@@ -31,7 +38,12 @@ pub mod uart {
         where
             Self: Sized,
         {
-            unsafe { Read::read_until_idle(&mut *self.0, buf).await }
+            self.stolen_signal.store(false, Ordering::SeqCst);
+            let res = unsafe { Read::read_until_idle(&mut *self.ptr, buf).await };
+            if true == self.stolen_signal.load(Ordering::SeqCst) {
+                let () = core::future::pending().await;
+            }
+            res
         }
     }
 
@@ -40,8 +52,14 @@ pub mod uart {
         RxDma: embassy_stm32::usart::RxDma<T>,
         T: BasicInstance,
     {
-        pub(crate) fn new(rx: *mut UartRx<'static, T, RxDma>) -> Self {
-            Self(rx)
+        pub(crate) fn new(
+            rx: *mut UartRx<'static, T, RxDma>,
+            stolen_signal: &'static AtomicBool,
+        ) -> Self {
+            Self {
+                ptr: rx,
+                stolen_signal,
+            }
         }
     }
 
@@ -55,6 +73,7 @@ pub mod uart {
         rx_dma: RxDma,
         tx: &'static mut UartTx<'static, T, TxDma>,
         rx: *mut UartRx<'static, T, RxDma>,
+        rx_stolen_signal: &'static AtomicBool,
     }
 
     impl<T, TxDma, RxDma> HalfDuplexUartTx<T, TxDma, RxDma>
@@ -68,22 +87,20 @@ pub mod uart {
             rx: *mut UartRx<'static, T, RxDma>,
             rx_dma: RxDma,
             tx_dma: TxDma,
+            rx_stolen_signal: &'static AtomicBool,
         ) -> Self {
             Self {
                 tx,
                 rx,
                 rx_dma,
                 tx_dma,
+                rx_stolen_signal,
             }
         }
 
         fn disable_rx(&mut self) {
             self.rx_dma.request_stop();
             while self.rx_dma.is_running() {}
-        }
-        unsafe fn disable_tx(&mut self) {
-            self.tx_dma.request_stop();
-            while self.tx_dma.is_running() {}
         }
 
         fn collision_occurred(rx: &[u8; 5], tx: &[u8]) -> bool {
@@ -98,9 +115,10 @@ pub mod uart {
 
         async unsafe fn duplex_transmit(&mut self, buffer: &[u8]) -> Result<(), WriteError> {
             self.disable_rx();
+            self.rx_stolen_signal.store(true, Ordering::SeqCst);
             let transmit_stolen = self.rx.as_mut().expect("cannot get rx pointer...");
             let mut rx_buf: [u8; 5] = [0; 5];
-            let mut five_byte_read = Read::read_until_idle(transmit_stolen, &mut rx_buf);
+            let five_byte_read = Read::read_until_idle(transmit_stolen, &mut rx_buf);
             let mut transmit = self.tx.write(buffer);
             let p_transmit = Pin::new_unchecked(&mut transmit);
             let collision_result = select(p_transmit, five_byte_read).await;
@@ -111,13 +129,18 @@ pub mod uart {
                     Err(WriteError::FramingError)
                 }
                 Either::Second(rx_res) => {
+                    info!("{:?}", &rx_res);
                     if rx_res.is_err() || Self::collision_occurred(&rx_buf, buffer) {
-                        Err(WriteError::FramingError)
+                        Err(WriteError::CollisionError)
                     } else {
                         Ok(())
                     }
                 }
             };
+            // being extra safe to not have ordering issues...
+            self.rx_stolen_signal.store(true, Ordering::SeqCst);
+
+            info!("RESULT: {:?}", &res);
             if res.is_err() {
                 // stop dma transfer
                 self.tx_dma.request_stop();
@@ -152,9 +175,12 @@ pub mod uart {
         }
     }
 
+    // safety: we take a mutable reference to rx and tx adn taken_flag to ensure no other process can use them,
+    // then we use them internally :)
     pub fn new<T, TxDma, RxDma>(
         rx_: &'static mut UartRx<'static, T, RxDma>,
         tx_: &'static mut UartTx<'static, T, TxDma>,
+        taken_flag: &'static mut AtomicBool,
         tx_dma: TxDma,
         rx_dma: RxDma,
     ) -> (
@@ -171,8 +197,8 @@ pub mod uart {
 
         let rx_mut_ptr_2: *mut UartRx<T, RxDma> =
             unsafe { mem::transmute(rx_ as *const UartRx<T, RxDma>) };
-        let tx_component = HalfDuplexUartTx::new(tx_, rx_mut_ptr, rx_dma, tx_dma);
-        let rx_component = HalfDuplexUartRx::new(rx_mut_ptr_2);
+        let tx_component = HalfDuplexUartTx::new(tx_, rx_mut_ptr, rx_dma, tx_dma, taken_flag);
+        let rx_component = HalfDuplexUartRx::new(rx_mut_ptr_2, taken_flag);
         return (rx_component, tx_component);
     }
 }

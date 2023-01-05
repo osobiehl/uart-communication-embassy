@@ -50,6 +50,7 @@ pub mod backoff {
                 return Err(());
             } else {
                 let to_wait = self.calculate_backoff();
+                info!("waiting: {:?}", &to_wait);
                 self.timer
                     .duration(Duration::from_micros(to_wait as u64))
                     .expect("could not start backoff timer!");

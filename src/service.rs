@@ -34,8 +34,6 @@ pub mod service {
             const MAC_ADDRESS_ONE: [u8; 6] = [0, 2, 3, 4, 5, 7];
             let state = singleton!(CommunicationState::new());
             let (runner, device) = embassy_net_driver_channel::new(state, MAC_ADDRESS_ONE);
-            static CELL: StaticCell<UartRx<USART2, DMA2_CH4>> = StaticCell::new();
-            let y = self.usart2_rx.take().unwrap();
             let usart2_tx = self.tx_channel_one()?;
             let usart2_rx = self.rx_channel_one()?;
             let tim6 = self.timer_channel_one()?;

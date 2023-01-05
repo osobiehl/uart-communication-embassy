@@ -7,7 +7,7 @@ use core::future;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use defmt::*;
-use embassy_futures::select::select;
+use embassy_futures::select::{select, Either};
 use embassy_net_driver_channel::{Runner, RxRunner, State, StateRunner, TxRunner};
 
 use rand_core::RngCore;
@@ -62,7 +62,6 @@ where
         let buf = self.tx_runner.tx_buf().await;
         let transmit_result = self.write.write(buf).await;
         // if an error happened: try again / cancel if too many errors
-
         match transmit_result {
             Ok(_) => self.on_transmit_complete(),
             Err(err) => match err {
@@ -148,7 +147,7 @@ where
 
     pub async fn start(&mut self) -> ! {
         loop {
-            select(self.tx_handler.transmit(), self.rx_handler.read()).await;
+            let x = select(self.tx_handler.transmit(), self.rx_handler.read()).await;
         }
     }
 }

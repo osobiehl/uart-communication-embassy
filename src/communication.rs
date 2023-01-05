@@ -1,7 +1,7 @@
 pub mod serial {
+    use defmt::*;
     use embassy_stm32::usart::{BasicInstance, UartRx, UartTx};
-
-    #[derive(Debug)]
+    #[derive(Debug, Format)]
     #[non_exhaustive]
     pub enum WriteError {
         FramingError,
@@ -14,12 +14,13 @@ pub mod serial {
         fn is_line_free(&self) -> bool;
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Format)]
     #[non_exhaustive]
     pub enum ReadError {
         FramingError,
         OverflowError,
     }
+
     pub trait Read {
         async fn read_until_idle<'a>(&'a mut self, buf: &'a mut [u8]) -> Result<usize, ReadError>
         where
