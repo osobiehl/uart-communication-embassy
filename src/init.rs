@@ -1,17 +1,30 @@
 pub mod init {
     use crate::async_timer::timer::AsyncBasicTimer;
+    use crate::half_duplex;
+    use crate::half_duplex::uart::{HalfDuplexUartRx, HalfDuplexUartTx};
+
     use crate::locator::locator;
     use crate::service::service::CoreServiceLocator;
     use embassy_stm32::pac::RCC;
+    use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, USART2, USART3};
     use embassy_stm32::rcc::{
         AHBPrescaler, APBPrescaler, ClockSrc, MSIRange, PLLClkDiv, PLLMul, PLLSAI1PDiv,
         PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv,
     };
     use embassy_stm32::rng::Rng;
     use embassy_stm32::time::Hertz;
-    use embassy_stm32::usart::{Config as UartConfig, Uart};
-    use embassy_stm32::{interrupt, Config};
+    use embassy_stm32::usart::{Config as UartConfig, Uart, UartRx, UartTx};
+    use embassy_stm32::{interrupt, Config, Peripheral};
+    use static_cell::StaticCell;
     use {defmt_rtt as _, panic_probe as _};
+
+    macro_rules! singleton {
+        ($val:expr) => {{
+            type T = impl Sized;
+            static STATIC_CELL: StaticCell<T> = StaticCell::new();
+            STATIC_CELL.init_with(move || $val)
+        }};
+    }
     const MSI_RANGE: MSIRange = MSIRange::Range7; // 8 MHz;
 
     impl ToPLL for ClockSrc {
@@ -97,7 +110,7 @@ pub mod init {
         config.rcc.apb1_pre = APBPrescaler::NotDivided;
         config.rcc.apb2_pre = APBPrescaler::NotDivided;
 
-        let peripherals = embassy_stm32::init(config);
+        let mut peripherals = embassy_stm32::init(config);
         unsafe {
             enable_48_mhz_pllsai1(
                 ClockSrc::MSI(MSI_RANGE),
@@ -128,6 +141,8 @@ pub mod init {
         let mut config_usart3: UartConfig = Default::default();
         config_usart3.baudrate = 115200;
 
+        let u3_tx_dma = unsafe { peripherals.DMA2_CH1.clone_unchecked() };
+        let u3_rx_dma = unsafe { peripherals.DMA2_CH2.clone_unchecked() };
         let usart3 = Uart::new(
             peripherals.USART3,
             peripherals.PC11,
@@ -138,9 +153,26 @@ pub mod init {
             config_usart3,
         );
 
+        // compiler does not let singleton! macro work off the bat, so I must do this
+        let (u3tx, u3rx): (
+            UartTx<'static, USART3, DMA2_CH1>,
+            UartRx<'static, USART3, DMA2_CH2>,
+        ) = usart3.split();
+
+        static uart3_a: StaticCell<UartTx<'static, USART3, DMA2_CH1>> = StaticCell::new();
+        static uart3_b: StaticCell<UartRx<'static, USART3, DMA2_CH2>> = StaticCell::new();
+        let u3tx = uart3_a.init_with(|| u3tx);
+        let u3rx = uart3_b.init_with(|| u3rx);
+
+        let (half_duplex_uart_3_rx, half_duplex_uart_3_tx) =
+            half_duplex::uart::new(u3rx, u3tx, u3_tx_dma, u3_rx_dma);
+
         let irq_usart2 = interrupt::take!(USART2);
         let mut config_usart2: UartConfig = Default::default();
         config_usart2.baudrate = 115200;
+
+        let u2_tx_dma = unsafe { peripherals.DMA2_CH3.clone_unchecked() };
+        let u2_rx_dma = unsafe { peripherals.DMA2_CH4.clone_unchecked() };
 
         let usart2 = Uart::new(
             peripherals.USART2,
@@ -151,18 +183,27 @@ pub mod init {
             peripherals.DMA2_CH4,
             config_usart2,
         );
-        let (u2tx, u2rx) = usart2.split();
-        let (u3tx, u3rx) = usart3.split();
+
+        static uart_2_init: StaticCell<(
+            UartTx<'static, USART2, DMA2_CH3>,
+            UartRx<'static, USART2, DMA2_CH4>,
+        )> = StaticCell::new();
+
+        let (u2tx, u2rx) = uart_2_init.init_with(|| usart2.split());
+
+        let (half_duplex_uart_2_rx, half_duplex_uart_2_tx) =
+            half_duplex::uart::new(u2rx, u2tx, u2_tx_dma, u2_rx_dma);
+
         let timer = AsyncBasicTimer::new(peripherals.TIM6, interrupt::take!(TIM6), Hertz::mhz(1));
         let timer2 = AsyncBasicTimer::new(peripherals.TIM7, interrupt::take!(TIM7), Hertz::mhz(1));
         let loc = locator::HardwareLocator {
             tim7: Some(timer2),
             tim6: Some(timer),
             dummy_rng: Some(crate::backoff_handler::backoff::DummyRng {}),
-            usart2_rx: Some(u2rx),
-            usart2_tx: Some(u2tx),
-            usart3_rx: Some(u3rx),
-            usart3_tx: Some(u3tx),
+            usart2_rx: Some(half_duplex_uart_2_rx),
+            usart2_tx: Some(half_duplex_uart_2_tx),
+            usart3_rx: Some(half_duplex_uart_3_rx),
+            usart3_tx: Some(half_duplex_uart_3_tx),
             rng: Some(Rng::new(peripherals.RNG)),
         };
 

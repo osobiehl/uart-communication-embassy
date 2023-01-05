@@ -7,6 +7,7 @@
 
 mod async_timer;
 mod communication;
+mod half_duplex;
 mod init;
 mod locator;
 mod service;

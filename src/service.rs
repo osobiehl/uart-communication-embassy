@@ -4,6 +4,8 @@ pub mod service {
     use crate::uart_ip::{AsyncDevice, AsyncHalfDuplexUart, CommunicationState};
     use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, Stack, StackResources};
     use embassy_net_driver::Driver;
+    use embassy_stm32::peripherals::{DMA2_CH4, USART2};
+    use embassy_stm32::usart::UartRx;
     use heapless::Vec;
     use rand_core::RngCore;
     use static_cell::StaticCell;
@@ -32,6 +34,8 @@ pub mod service {
             const MAC_ADDRESS_ONE: [u8; 6] = [0, 2, 3, 4, 5, 7];
             let state = singleton!(CommunicationState::new());
             let (runner, device) = embassy_net_driver_channel::new(state, MAC_ADDRESS_ONE);
+            static CELL: StaticCell<UartRx<USART2, DMA2_CH4>> = StaticCell::new();
+            let y = self.usart2_rx.take().unwrap();
             let usart2_tx = self.tx_channel_one()?;
             let usart2_rx = self.rx_channel_one()?;
             let tim6 = self.timer_channel_one()?;
