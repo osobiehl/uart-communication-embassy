@@ -12,7 +12,6 @@ pub mod uart {
     use embassy_stm32::usart::{BasicInstance, UartRx, UartTx};
     use embassy_stm32::{self};
 
-    use static_cell::StaticCell;
     pub struct HalfDuplexUartRx<T, RxDma>
     where
         RxDma: embassy_stm32::usart::RxDma<T>,

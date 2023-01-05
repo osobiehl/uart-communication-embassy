@@ -1,6 +1,4 @@
 pub mod timer {
-    // use embassy_stm32::pac::TIM15;
-
     use embassy_cortex_m::interrupt::Priority;
 
     use embassy_stm32::rcc::low_level::RccPeripheral;

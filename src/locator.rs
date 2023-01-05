@@ -3,27 +3,25 @@ pub mod locator {
     use crate::backoff_handler::backoff::DummyRng;
     use crate::communication::serial::{Read, Write};
     use crate::half_duplex::uart::{HalfDuplexUartRx, HalfDuplexUartTx};
-    use crate::uart_ip::{AsyncDevice, CommunicationState};
+
     use crate::AsyncBasicTimer;
-    use embassy_net_driver::Driver;
+
     use embassy_stm32::interrupt::{TIM6 as TIM6I, TIM7 as TIM7I};
     use embassy_stm32::peripherals::{
         DMA1_CH1, DMA1_CH2, DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, LPUART1, RNG, TIM6, TIM7,
         USART2, USART3,
     };
     use embassy_stm32::rng::Rng;
-    use embassy_stm32::usart::{Uart, UartRx, UartTx};
-    use embassy_sync::blocking_mutex::CriticalSectionMutex;
+    use embassy_stm32::usart::Uart;
+
     use rand_core::RngCore;
-    use static_cell::StaticCell;
-    pub type LpUart = Uart<'static, LPUART1, DMA1_CH1, DMA1_CH2>;
+
+    pub type _LpUart = Uart<'static, LPUART1, DMA1_CH1, DMA1_CH2>;
     pub type Usart3Rx = HalfDuplexUartRx<USART3, DMA2_CH2>;
     pub type Usart3Tx = HalfDuplexUartTx<USART3, DMA2_CH1, DMA2_CH2>;
 
     pub type Usart2Rx = HalfDuplexUartRx<USART2, DMA2_CH4>;
     pub type Usart2Tx = HalfDuplexUartTx<USART2, DMA2_CH3, DMA2_CH4>;
-    pub type Usart3 = Uart<'static, USART3, DMA2_CH1, DMA2_CH2>;
-    pub type Usart2 = Uart<'static, USART2, DMA2_CH3, DMA2_CH4>;
 
     // #[derive(Default)]
     pub struct HardwareLocator {

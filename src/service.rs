@@ -4,8 +4,7 @@ pub mod service {
     use crate::uart_ip::{AsyncDevice, AsyncHalfDuplexUart, CommunicationState};
     use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, Stack, StackResources};
     use embassy_net_driver::Driver;
-    use embassy_stm32::peripherals::{DMA2_CH4, USART2};
-    use embassy_stm32::usart::UartRx;
+
     use heapless::Vec;
     use rand_core::RngCore;
     use static_cell::StaticCell;

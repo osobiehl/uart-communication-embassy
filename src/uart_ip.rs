@@ -7,7 +7,7 @@ use core::future;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use defmt::*;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::select;
 use embassy_net_driver_channel::{Runner, RxRunner, State, StateRunner, TxRunner};
 
 use rand_core::RngCore;
@@ -76,11 +76,19 @@ where
         self.backoff_handler.clear();
         self.in_backoff.store(false, Ordering::Relaxed);
     }
-
+    /**
+     * correctness: Since this is used in a select with the rx component in a loop,
+     * having the rx future complete will drop this future, and the next future constructed
+     * will have "waited for idle"
+     */
     async fn await_idle(&mut self) {
         let () = future::pending().await;
     }
 
+    /**
+     * note: The smolltcp stack does not have any way for a device to report errors to the stack.
+     * If you are really worried about this, use a protocol like tcp or introduce an on_error function
+     */
     fn increment_backoff(&mut self) {
         self.in_backoff.store(true, Ordering::Relaxed);
 
@@ -147,7 +155,7 @@ where
 
     pub async fn start(&mut self) -> ! {
         loop {
-            let x = select(self.tx_handler.transmit(), self.rx_handler.read()).await;
+            select(self.tx_handler.transmit(), self.rx_handler.read()).await;
         }
     }
 }

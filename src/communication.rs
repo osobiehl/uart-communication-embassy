@@ -16,6 +16,7 @@ pub mod serial {
 
     #[derive(Debug, Format)]
     #[non_exhaustive]
+    #[allow(dead_code)]
     pub enum ReadError {
         FramingError,
         OverflowError,
