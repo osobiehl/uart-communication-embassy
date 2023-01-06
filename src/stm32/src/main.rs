@@ -5,19 +5,19 @@
 #![feature(async_fn_in_trait)]
 #![feature(return_position_impl_trait_in_trait)]
 
-mod async_timer;
-mod communication;
 mod half_duplex;
 mod init;
 mod locator;
-mod service;
+mod stm32_service;
+mod stm32_timer;
+mod stm32_uart;
 mod uart_ip;
 
 use core::str;
 use embassy_net_driver::Driver;
 
 mod backoff_handler;
-use async_timer::timer::AsyncBasicTimer;
+use stm32_timer::timer::AsyncBasicTimer;
 
 use core::fmt::Write as Writefmt;
 use defmt::*;
@@ -28,9 +28,9 @@ use embassy_net::{Ipv4Address, PacketMetadata, Stack};
 use embassy_time::{Duration, Timer};
 use heapless::String;
 
-use uart_ip::AsyncDevice;
+use communication::AsyncDevice;
 
-use crate::service::service::CoreServiceLocator;
+use communication::CoreServiceLocator;
 
 use {defmt_rtt as _, panic_probe as _};
 

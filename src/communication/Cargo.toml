@@ -1,0 +1,15 @@
+[package]
+name = "communication"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embassy-time = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
+defmt = "0.3"
+rand_core = { version = "0.6.3", default-features = false }
+embassy-futures = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
+embassy-net-driver-channel = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
+embassy-net-driver = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
+embassy-net = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "nightly"] }

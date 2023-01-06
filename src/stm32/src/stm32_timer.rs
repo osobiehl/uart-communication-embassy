@@ -12,17 +12,9 @@ pub mod timer {
     use core::sync::atomic::Ordering;
     use core::task::Poll;
 
+    use communication::AsyncTimer;
     use embassy_stm32::interrupt::InterruptExt;
     use embassy_time::Duration;
-
-    pub trait AsyncTimer {
-        type AsyncOutput<'a>: Future<Output = ()> + 'a
-        where
-            Self: 'a;
-        fn duration<'a>(&'a mut self, duration: Duration) -> Option<Self::AsyncOutput<'a>>;
-        fn get_handle<'a>(&'a mut self) -> Option<Self::AsyncOutput<'a>>;
-    }
-
     impl<INS, INT> AsyncTimer for AsyncBasicTimer<INS, INT>
     where
         INS: Basic16bitInstance + 'static,

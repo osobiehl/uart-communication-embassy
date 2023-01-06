@@ -1,8 +1,8 @@
 pub mod locator {
-    use crate::async_timer::timer::AsyncTimer;
     use crate::backoff_handler::backoff::DummyRng;
-    use crate::communication::serial::{Read, Write};
     use crate::half_duplex::uart::{HalfDuplexUartRx, HalfDuplexUartTx};
+    use communication::AsyncTimer;
+    use communication::{Read, Write};
 
     use crate::AsyncBasicTimer;
 

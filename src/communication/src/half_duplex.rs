@@ -1,6 +1,7 @@
-use crate::async_timer::timer::AsyncTimer;
-use crate::backoff_handler::backoff::BackoffHandler;
-use crate::communication::serial::{Read, Write, WriteError};
+
+use crate::BackoffHandler;
+use crate::{AsyncDevice, AsyncTimer};
+use crate::{Read, Write, WriteError};
 
 use core::future;
 
@@ -67,6 +68,7 @@ where
             Err(err) => match err {
                 WriteError::FramingError => self.increment_backoff(),
                 WriteError::CollisionError => self.increment_backoff(),
+                _ => self.increment_backoff(),
             },
         };
     }
@@ -158,10 +160,6 @@ where
             select(self.tx_handler.transmit(), self.rx_handler.read()).await;
         }
     }
-}
-
-pub trait AsyncDevice {
-    async fn start(&mut self) -> !;
 }
 
 impl<R, W, T, RN> AsyncDevice for AsyncHalfDuplexUart<R, W, T, RN>

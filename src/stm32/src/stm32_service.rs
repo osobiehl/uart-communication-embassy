@@ -1,7 +1,10 @@
 pub mod service {
 
     use crate::locator::locator::{HardwareLocator, Locator};
-    use crate::uart_ip::{AsyncDevice, AsyncHalfDuplexUart, CommunicationState};
+
+    use communication::half_duplex::{AsyncHalfDuplexUart, CommunicationState};
+    use communication::AsyncDevice;
+    use communication::CoreServiceLocator;
     use embassy_net::{ConfigStrategy, Ipv4Address, Ipv4Cidr, Stack, StackResources};
     use embassy_net_driver::Driver;
 
@@ -15,14 +18,6 @@ pub mod service {
             static STATIC_CELL: StaticCell<T> = StaticCell::new();
             STATIC_CELL.init_with(move || $val)
         }};
-    }
-
-    pub trait CoreServiceLocator {
-        fn comm_stack_one(&mut self)
-            -> Option<(&'static mut Stack<impl Driver>, impl AsyncDevice)>;
-
-        fn comm_stack_two(&mut self)
-            -> Option<(&'static mut Stack<impl Driver>, impl AsyncDevice)>;
     }
 
     impl CoreServiceLocator for HardwareLocator {

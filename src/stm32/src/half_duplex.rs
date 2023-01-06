@@ -4,12 +4,12 @@ pub mod uart {
     use core::pin::Pin;
     use core::sync::atomic::{AtomicBool, Ordering};
 
-    use crate::communication::serial::{Read, Write, WriteError};
+    use crate::stm32_uart::serial::{BasicUartRx, BasicUartTx};
+    use communication::{Read, ReadError, Write, WriteError};
     use core::mem;
     use defmt::info;
     use embassy_futures::select::{select, Either};
-
-    use embassy_stm32::usart::{BasicInstance, UartRx, UartTx};
+    use embassy_stm32::usart::BasicInstance;
     use embassy_stm32::{self};
 
     pub struct HalfDuplexUartRx<T, RxDma>
@@ -17,7 +17,7 @@ pub mod uart {
         RxDma: embassy_stm32::usart::RxDma<T>,
         T: BasicInstance,
     {
-        ptr: *mut UartRx<'static, T, RxDma>,
+        ptr: *mut BasicUartRx<'static, T, RxDma>,
         stolen_signal: &'static AtomicBool,
     }
 
@@ -30,10 +30,7 @@ pub mod uart {
          * read until idle interrupt. If this struct was signalled that rx was stolen,
          * wait for tx to complete instead and drop this future
          */
-        async fn read_until_idle<'a>(
-            &'a mut self,
-            buf: &'a mut [u8],
-        ) -> Result<usize, crate::communication::serial::ReadError>
+        async fn read_until_idle<'a>(&'a mut self, buf: &'a mut [u8]) -> Result<usize, ReadError>
         where
             Self: Sized,
         {
@@ -52,7 +49,7 @@ pub mod uart {
         T: BasicInstance,
     {
         pub(crate) fn new(
-            rx: *mut UartRx<'static, T, RxDma>,
+            rx: *mut BasicUartRx<'static, T, RxDma>,
             stolen_signal: &'static AtomicBool,
         ) -> Self {
             Self {
@@ -70,8 +67,8 @@ pub mod uart {
     {
         tx_dma: TxDma,
         rx_dma: RxDma,
-        tx: &'static mut UartTx<'static, T, TxDma>,
-        rx: *mut UartRx<'static, T, RxDma>,
+        tx: &'static mut BasicUartTx<'static, T, TxDma>,
+        rx: *mut BasicUartRx<'static, T, RxDma>,
         rx_stolen_signal: &'static AtomicBool,
     }
 
@@ -82,8 +79,8 @@ pub mod uart {
         T: BasicInstance,
     {
         pub(crate) fn new(
-            tx: &'static mut UartTx<'static, T, TxDma>,
-            rx: *mut UartRx<'static, T, RxDma>,
+            tx: &'static mut BasicUartTx<'static, T, TxDma>,
+            rx: *mut BasicUartRx<'static, T, RxDma>,
             rx_dma: RxDma,
             tx_dma: TxDma,
             rx_stolen_signal: &'static AtomicBool,
@@ -177,8 +174,8 @@ pub mod uart {
     // safety: we take a mutable reference to rx and tx adn taken_flag to ensure no other process can use them,
     // then we use them internally :)
     pub fn new<T, TxDma, RxDma>(
-        rx_: &'static mut UartRx<'static, T, RxDma>,
-        tx_: &'static mut UartTx<'static, T, TxDma>,
+        rx_: &'static mut BasicUartRx<'static, T, RxDma>,
+        tx_: &'static mut BasicUartTx<'static, T, TxDma>,
         taken_flag: &'static mut AtomicBool,
         tx_dma: TxDma,
         rx_dma: RxDma,
@@ -191,11 +188,11 @@ pub mod uart {
         RxDma: embassy_stm32::usart::RxDma<T>,
         T: BasicInstance,
     {
-        let rx_mut_ptr: *mut UartRx<T, RxDma> =
-            unsafe { mem::transmute(rx_ as *const UartRx<T, RxDma>) };
+        let rx_mut_ptr: *mut BasicUartRx<T, RxDma> =
+            unsafe { mem::transmute(rx_ as *const BasicUartRx<T, RxDma>) };
 
-        let rx_mut_ptr_2: *mut UartRx<T, RxDma> =
-            unsafe { mem::transmute(rx_ as *const UartRx<T, RxDma>) };
+        let rx_mut_ptr_2: *mut BasicUartRx<T, RxDma> =
+            unsafe { mem::transmute(rx_ as *const BasicUartRx<T, RxDma>) };
         let tx_component = HalfDuplexUartTx::new(tx_, rx_mut_ptr, rx_dma, tx_dma, taken_flag);
         let rx_component = HalfDuplexUartRx::new(rx_mut_ptr_2, taken_flag);
         return (rx_component, tx_component);

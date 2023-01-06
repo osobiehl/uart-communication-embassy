@@ -1,11 +1,12 @@
 pub mod init {
     use core::sync::atomic::AtomicBool;
 
-    use crate::async_timer::timer::AsyncBasicTimer;
     use crate::half_duplex;
+    use crate::stm32_timer::timer::AsyncBasicTimer;
 
     use crate::locator::locator;
-    use crate::service::service::CoreServiceLocator;
+    use crate::stm32_uart::serial::{BasicUartRx, BasicUartTx};
+    use communication::CoreServiceLocator;
     use embassy_stm32::pac::RCC;
     use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, USART2, USART3};
     use embassy_stm32::rcc::{
@@ -160,10 +161,10 @@ pub mod init {
             UartRx<'static, USART3, DMA2_CH2>,
         ) = usart3.split();
 
-        static UART3_A: StaticCell<UartTx<'static, USART3, DMA2_CH1>> = StaticCell::new();
-        static UART3_B: StaticCell<UartRx<'static, USART3, DMA2_CH2>> = StaticCell::new();
-        let u3tx = UART3_A.init_with(|| u3tx);
-        let u3rx = UART3_B.init_with(|| u3rx);
+        static UART3_A: StaticCell<BasicUartTx<'static, USART3, DMA2_CH1>> = StaticCell::new();
+        static UART3_B: StaticCell<BasicUartRx<'static, USART3, DMA2_CH2>> = StaticCell::new();
+        let u3tx = UART3_A.init_with(|| u3tx.into());
+        let u3rx = UART3_B.init_with(|| u3rx.into());
         let uart3_take_flag = singleton!(AtomicBool::new(false));
         let (half_duplex_uart_3_rx, half_duplex_uart_3_tx) =
             half_duplex::uart::new(u3rx, u3tx, uart3_take_flag, u3_tx_dma, u3_rx_dma);
@@ -186,11 +187,14 @@ pub mod init {
         );
 
         static UART_2_INIT: StaticCell<(
-            UartTx<'static, USART2, DMA2_CH3>,
-            UartRx<'static, USART2, DMA2_CH4>,
+            BasicUartTx<'static, USART2, DMA2_CH3>,
+            BasicUartRx<'static, USART2, DMA2_CH4>,
         )> = StaticCell::new();
 
-        let (u2tx, u2rx) = UART_2_INIT.init_with(|| usart2.split());
+        let (u2tx, u2rx) = UART_2_INIT.init_with(|| {
+            let (a, b) = usart2.split();
+            (a.into(), b.into())
+        });
         let usart2_take_flag = singleton!(AtomicBool::new(false));
         let (half_duplex_uart_2_rx, half_duplex_uart_2_tx) =
             half_duplex::uart::new(u2rx, u2tx, usart2_take_flag, u2_tx_dma, u2_rx_dma);
