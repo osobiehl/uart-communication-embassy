@@ -4,7 +4,7 @@ pub mod locator {
     use communication::AsyncTimer;
     use communication::{Read, Write};
 
-    use crate::AsyncBasicTimer;
+    use crate::stm32_timer::timer::AsyncBasicTimer;
 
     use embassy_stm32::interrupt::{TIM6 as TIM6I, TIM7 as TIM7I};
     use embassy_stm32::peripherals::{

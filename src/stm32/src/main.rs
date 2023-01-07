@@ -17,7 +17,6 @@ use core::str;
 use embassy_net_driver::Driver;
 
 mod backoff_handler;
-use stm32_timer::timer::AsyncBasicTimer;
 
 use core::fmt::Write as Writefmt;
 use defmt::*;
