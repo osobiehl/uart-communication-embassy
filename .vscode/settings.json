@@ -11,7 +11,7 @@
     "rust-analyzer.imports.granularity.enforce": true,
     "rust-analyzer.imports.granularity.group": "module",
     "rust-analyzer.cargo.buildScripts.enable": true,
-    "rust-analyzer.procMacro.attributes.enable": false,
+    "rust-analyzer.procMacro.attributes.enable": true,
     "rust-analyzer.linkedProjects": [
         // Declare for the target you wish to develop
         // "embassy-executor/Cargo.toml",
