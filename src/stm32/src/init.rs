@@ -7,8 +7,9 @@ pub mod init {
     use crate::locator::locator;
     use crate::stm32_uart::serial::{BasicUartRx, BasicUartTx};
     use communication::CoreServiceLocator;
+    use embassy_stm32::gpio::Output;
     use embassy_stm32::pac::RCC;
-    use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, USART2, USART3};
+    use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, USART2, USART3};
     use embassy_stm32::rcc::{
         AHBPrescaler, APBPrescaler, ClockSrc, MSIRange, PLLClkDiv, PLLMul, PLLSAI1PDiv,
         PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv,
@@ -127,7 +128,7 @@ pub mod init {
         // initialize lpuart
         let irq_lpuart = interrupt::take!(LPUART1);
         let mut config_lpuart: UartConfig = Default::default();
-        config_lpuart.baudrate = 115200;
+        config_lpuart.baudrate = 500000;
 
         let _lpuart = Uart::new(
             peripherals.LPUART1,
@@ -141,7 +142,7 @@ pub mod init {
 
         let irq_usart3 = interrupt::take!(USART3);
         let mut config_usart3: UartConfig = Default::default();
-        config_usart3.baudrate = 115200;
+        config_usart3.baudrate = 500000;
 
         let u3_tx_dma = unsafe { peripherals.DMA2_CH1.clone_unchecked() };
         let u3_rx_dma = unsafe { peripherals.DMA2_CH2.clone_unchecked() };
@@ -171,11 +172,10 @@ pub mod init {
 
         let irq_usart2 = interrupt::take!(USART2);
         let mut config_usart2: UartConfig = Default::default();
-        config_usart2.baudrate = 115200;
+        config_usart2.baudrate = 500000;
 
         let u2_tx_dma = unsafe { peripherals.DMA2_CH3.clone_unchecked() };
         let u2_rx_dma = unsafe { peripherals.DMA2_CH4.clone_unchecked() };
-
         let usart2 = Uart::new(
             peripherals.USART2,
             peripherals.PA3,
@@ -211,6 +211,13 @@ pub mod init {
             usart3_tx: Some(half_duplex_uart_3_tx),
             rng: Some(Rng::new(peripherals.RNG)),
         };
+        static PIN_ON: StaticCell<Output<PA4>> = StaticCell::new();
+
+        let x = PIN_ON.init(Output::new(
+            peripherals.PA4,
+            embassy_stm32::gpio::Level::High,
+            embassy_stm32::gpio::Speed::High,
+        ));
 
         return loc;
     }
