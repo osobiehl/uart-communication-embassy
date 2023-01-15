@@ -5,11 +5,16 @@ pub mod init {
     use crate::stm32_timer::timer::AsyncBasicTimer;
 
     use crate::locator::locator;
+    use crate::pwm_uart::pwm_uart::{PwmError, PwmOutputTimer};
     use crate::stm32_uart::serial::{BasicUartRx, BasicUartTx};
     use communication::CoreServiceLocator;
     use embassy_stm32::gpio::Output;
     use embassy_stm32::pac::RCC;
-    use embassy_stm32::peripherals::{DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, USART2, USART3};
+    use embassy_stm32::peripherals::{
+        DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, TIM3, USART2, USART3,
+    };
+    use embassy_stm32::pwm::simple_pwm;
+    use embassy_stm32::pwm::simple_pwm::PwmPin;
     use embassy_stm32::rcc::{
         AHBPrescaler, APBPrescaler, ClockSrc, MSIRange, PLLClkDiv, PLLMul, PLLSAI1PDiv,
         PLLSAI1QDiv, PLLSAI1RDiv, PLLSource, PLLSrcDiv,
@@ -20,7 +25,6 @@ pub mod init {
     use embassy_stm32::{interrupt, Config, Peripheral};
     use static_cell::StaticCell;
     use {defmt_rtt as _, panic_probe as _};
-
     macro_rules! singleton {
         ($val:expr) => {{
             type T = impl Sized;
@@ -218,6 +222,17 @@ pub mod init {
             embassy_stm32::gpio::Level::High,
             embassy_stm32::gpio::Speed::High,
         ));
+
+        let timer_input_pin: PwmPin<TIM3, simple_pwm::Ch2> = PwmPin::new_ch2(peripherals.PA7);
+        let timer_output_pin: PwmPin<TIM3, simple_pwm::Ch1> = PwmPin::new_ch1(peripherals.PA6);
+        let test = PwmOutputTimer::try_new(
+            peripherals.TIM3,
+            timer_output_pin,
+            timer_input_pin,
+            Hertz::hz(500000),
+            8,
+        )
+        .expect("could not start pwm timer");
 
         return loc;
     }

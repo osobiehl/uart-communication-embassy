@@ -8,6 +8,7 @@
 mod half_duplex;
 mod init;
 mod locator;
+mod pwm_uart;
 mod stm32_service;
 mod stm32_timer;
 mod stm32_uart;

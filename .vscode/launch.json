@@ -9,20 +9,24 @@
             "request": "launch",
             "type": "cortex-debug",
             "cwd": "${workspaceRoot}",
-            "executable": "${workspaceFolder}/target/thumbv8m.main-none-eabihf/debug/embassy-communication",
-            "svdFile": "${workspaceFolder}/stm32l552.svd",
+            "executable": "${workspaceFolder}/src/stm32/target/thumbv8m.main-none-eabihf/debug/embassy-communication",
+            "svdFile": "${workspaceFolder}/src/stm32/stm32l552.svd",
             "servertype": "openocd",
             // "gdbPath": "gdb", 
+            "openOCDLaunchCommands": [
+                "adapter speed 5000"
+            ],
             "configFiles": [
-                "st_nucleo_l5.cfg",
+                "src/stm32/st_nucleo_l5.cfg",
                 // "interface/stlink.cfg"
             ],
+            "showDevDebugOutput": "raw",
             "preLaunchTask": "Build binary",
             "preLaunchCommands": [
                 "monitor init",
                 "monitor reset init",
                 "monitor halt",
-                "monitor flash write_image erase ./target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin 0x08000000"
+                "monitor flash write_image erase ./src/stm32/target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin 0x08000000"
             ],
             "postLaunchCommands": [] // Don't stop before at the first line
         }

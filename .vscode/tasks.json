@@ -8,6 +8,9 @@
             "args": [
                 "build",
             ],
+            "options": {
+                "cwd": "./src/stm32"
+            },
             "problemMatcher": [
                 "$rustc"
             ],
@@ -20,8 +23,8 @@
             "args": [
                 "--output-target",
                 "binary",
-                "./target/thumbv8m.main-none-eabihf/debug/embassy-communication",
-                "./target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin"
+                "./src/stm32/target/thumbv8m.main-none-eabihf/debug/embassy-communication",
+                "./src/stm32/target/thumbv8m.main-none-eabihf/debug/embassy-communication.bin"
             ],
             "problemMatcher": [
                 "$rustc"
