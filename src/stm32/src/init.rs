@@ -11,7 +11,7 @@ pub mod init {
     use embassy_stm32::gpio::Output;
     use embassy_stm32::pac::RCC;
     use embassy_stm32::peripherals::{
-        DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, TIM15, TIM3, USART2, USART3,
+        DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, TIM15, TIM3, TIM5, USART2, USART3,
     };
     use embassy_stm32::pwm::simple_pwm;
     use embassy_stm32::pwm::simple_pwm::PwmPin;
@@ -229,17 +229,18 @@ pub mod init {
             peripherals.TIM3,
             timer_output_pin,
             timer_input_pin,
-            Hertz::hz(500000),
+            Hertz::hz(UART_FREQUENCY),
             8,
         )
         .expect("could not start pwm timer");
-        let timer_15_input_pin: PwmPin<TIM15, simple_pwm::Ch2> = PwmPin::new_ch2(peripherals.PA3);
-        let timer_15_output_pin: PwmPin<TIM15, simple_pwm::Ch1> = PwmPin::new_ch1(peripherals.PA2);
+        let timer_15_input_pin: PwmPin<TIM5, simple_pwm::Ch2> = PwmPin::new_ch2(peripherals.PA1);
+        let timer_15_output_pin: PwmPin<TIM5, simple_pwm::Ch1> = PwmPin::new_ch1(peripherals.PA0);
         let test_2 = PwmInputModulationTimer::try_new(
-            peripherals.TIM15,
+            peripherals.TIM5,
             timer_15_output_pin,
             timer_15_input_pin,
             Hertz::hz(UART_FREQUENCY),
+            2,
         );
 
         return loc;

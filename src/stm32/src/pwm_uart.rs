@@ -10,7 +10,7 @@ pub mod pwm_uart {
     use core::mem;
     use defmt::info;
     use embassy_futures::select::{select, Either};
-    use embassy_stm32::pac::timer::vals::{CcmrInputCcs, Icf, Sms, Ts};
+    use embassy_stm32::pac::timer::vals::{CcmrInputCcs, Icf, Opm, Sms, Ts};
     use embassy_stm32::pwm::simple_pwm::{Ch1, Ch2, PwmPin, SimplePwm};
     use embassy_stm32::time::Hertz;
     use embassy_stm32::usart::BasicInstance;
@@ -131,6 +131,7 @@ pub mod pwm_uart {
             output_pin: PwmPin<'d, T, Ch1>,
             input_pin: PwmPin<'d, T, Ch2>,
             uart_frequency: Hertz,
+            pulse_width_divider: u8,
         ) -> Result<Self, PwmError> {
             T::enable();
             tim.reset();
@@ -141,8 +142,12 @@ pub mod pwm_uart {
                 tim.enable_outputs(true);
 
                 let max_arr = tim.get_max_compare_value();
-
-                tim.set_compare_value(Channel::Ch1, max_arr)
+                if pulse_width_divider == 0 {
+                    return Err(PwmError::DividerIsZero);
+                } else if pulse_width_divider as u16 > max_arr {
+                    return Err(PwmError::DividerTooLarge);
+                }
+                tim.set_compare_value(Channel::Ch1, max_arr / pulse_width_divider as u16)
             }
 
             let regs = T::regs_gp16();
@@ -172,10 +177,10 @@ pub mod pwm_uart {
             regs.ccmr_input(0)
                 .modify(|ccmr| ccmr.set_icf(1, Icf::NOFILTER));
 
-            //select positive polarity
+            //seelct only the negative transition of uart (uart is usually inverted :) )
             regs.ccer().modify(|ccer| {
-                ccer.set_ccp(0, true);
-                ccer.set_ccnp(0, false)
+                ccer.set_ccp(1, false);
+                ccer.set_ccnp(1, false)
             });
 
             // enable capture from the counter into the capture register  by setting the CC1E bit in the
@@ -188,15 +193,19 @@ pub mod pwm_uart {
 
             regs.smcr().modify(|smcr| {
                 smcr.set_ts(Ts::TI2FP2);
-                // The timer must be in Slave mode, with the bits SMS[3:0] = ‘1000’ (Combined Reset + trigger mode) p. 1213
-                smcr.set_sms(Sms(0b1000))
+                smcr.set_sms(Sms::TRIGGER_MODE)
             });
         }
 
         unsafe fn setup_output(&mut self) {
             self.tim
                 .set_output_compare_mode(Channel::Ch1, OutputCompareMode::PwmMode2);
+
+            let mut regs = T::regs_gp16();
+            regs.ccr(0).modify(|ccr1| ccr1.set_ccr(1));
+            regs.cr1().modify(|cr1| cr1.set_opm(Opm::ENABLED));
             self.tim.enable_channel(Channel::Ch1, true);
+            regs.egr().write(|egr| egr.set_ug(true));
         }
     }
 }
