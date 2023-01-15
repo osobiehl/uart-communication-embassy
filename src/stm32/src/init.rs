@@ -5,13 +5,13 @@ pub mod init {
     use crate::stm32_timer::timer::AsyncBasicTimer;
 
     use crate::locator::locator;
-    use crate::pwm_uart::pwm_uart::{PwmError, PwmOutputTimer};
+    use crate::pwm_uart::pwm_uart::{PwmError, PwmInputModulationTimer, PwmOutputTimer};
     use crate::stm32_uart::serial::{BasicUartRx, BasicUartTx};
     use communication::CoreServiceLocator;
     use embassy_stm32::gpio::Output;
     use embassy_stm32::pac::RCC;
     use embassy_stm32::peripherals::{
-        DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, TIM3, USART2, USART3,
+        DMA2_CH1, DMA2_CH2, DMA2_CH3, DMA2_CH4, PA4, TIM15, TIM3, USART2, USART3,
     };
     use embassy_stm32::pwm::simple_pwm;
     use embassy_stm32::pwm::simple_pwm::PwmPin;
@@ -107,7 +107,7 @@ pub mod init {
 
         RCC.cr().modify(|w| w.set_pllsai1on(true));
     }
-
+    const UART_FREQUENCY: u32 = 115200;
     pub fn initialize() -> impl CoreServiceLocator {
         let mut config = Config::default();
         config.rcc.mux = ClockSrc::MSI(MSI_RANGE);
@@ -132,7 +132,7 @@ pub mod init {
         // initialize lpuart
         let irq_lpuart = interrupt::take!(LPUART1);
         let mut config_lpuart: UartConfig = Default::default();
-        config_lpuart.baudrate = 500000;
+        config_lpuart.baudrate = UART_FREQUENCY;
 
         let _lpuart = Uart::new(
             peripherals.LPUART1,
@@ -146,7 +146,7 @@ pub mod init {
 
         let irq_usart3 = interrupt::take!(USART3);
         let mut config_usart3: UartConfig = Default::default();
-        config_usart3.baudrate = 500000;
+        config_usart3.baudrate = UART_FREQUENCY;
 
         let u3_tx_dma = unsafe { peripherals.DMA2_CH1.clone_unchecked() };
         let u3_rx_dma = unsafe { peripherals.DMA2_CH2.clone_unchecked() };
@@ -176,14 +176,14 @@ pub mod init {
 
         let irq_usart2 = interrupt::take!(USART2);
         let mut config_usart2: UartConfig = Default::default();
-        config_usart2.baudrate = 500000;
+        config_usart2.baudrate = UART_FREQUENCY;
 
         let u2_tx_dma = unsafe { peripherals.DMA2_CH3.clone_unchecked() };
         let u2_rx_dma = unsafe { peripherals.DMA2_CH4.clone_unchecked() };
         let usart2 = Uart::new(
             peripherals.USART2,
-            peripherals.PA3,
-            peripherals.PA2,
+            peripherals.PD6,
+            peripherals.PD5,
             irq_usart2,
             peripherals.DMA2_CH3,
             peripherals.DMA2_CH4,
@@ -233,6 +233,14 @@ pub mod init {
             8,
         )
         .expect("could not start pwm timer");
+        let timer_15_input_pin: PwmPin<TIM15, simple_pwm::Ch2> = PwmPin::new_ch2(peripherals.PA3);
+        let timer_15_output_pin: PwmPin<TIM15, simple_pwm::Ch1> = PwmPin::new_ch1(peripherals.PA2);
+        let test_2 = PwmInputModulationTimer::try_new(
+            peripherals.TIM15,
+            timer_15_output_pin,
+            timer_15_input_pin,
+            Hertz::hz(UART_FREQUENCY),
+        );
 
         return loc;
     }

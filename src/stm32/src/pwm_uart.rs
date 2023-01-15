@@ -44,7 +44,11 @@ pub mod pwm_uart {
             T::enable();
             tim.reset();
             tim.set_frequency(uart_frequency);
+            tim.start();
+
             unsafe {
+                tim.enable_outputs(true);
+
                 let max_arr = tim.get_max_compare_value();
                 if pulse_width_divider == 0 {
                     return Err(PwmError::DividerIsZero);
@@ -63,7 +67,6 @@ pub mod pwm_uart {
             }
 
             unsafe {
-                this.tim.enable_outputs(true);
                 // TODO set output compare mode
             }
 
@@ -75,7 +78,8 @@ pub mod pwm_uart {
             // bits to 01 in the TIMx_CCMR1 register
 
             let regs = T::regs_gp16();
-            regs.ccmr_input(0).modify(|ccmr| ccmr.ccs(1).0 = 0b01);
+            regs.ccmr_input(0)
+                .modify(|ccmr| ccmr.set_ccs(1, CcmrInputCcs(1)));
             // Program the appropriate input filter duration in relation with the signal connected to the
             // timer
             regs.ccmr_input(0)
@@ -84,7 +88,7 @@ pub mod pwm_uart {
             //seelct only the negative transition of uart (uart is usually inverted :) )
             regs.ccer().modify(|ccer| {
                 ccer.set_ccp(1, true);
-                ccer.set_ccnp(1, false)
+                ccer.set_ccnp(0, false)
             });
 
             // enable capture from the counter into the capture register  by setting the CC1E bit in the
@@ -102,13 +106,97 @@ pub mod pwm_uart {
         }
 
         unsafe fn setup_output(&mut self) {
-            self.tim.enable_outputs(true);
             self.tim
                 .set_output_compare_mode(Channel::Ch1, OutputCompareMode::PwmMode1);
+            self.tim.enable_channel(Channel::Ch1, true);
         }
     }
 
     // tim3 for transmission timer
     // tx timer input: A7
     // tx timer output: A6
+
+    pub struct PwmInputModulationTimer<T: CaptureCompare16bitInstance> {
+        tim: T,
+    }
+    // tim15 for rx timer
+    //A3 for input // ch2
+    //A2 for output // ch1
+    impl<T> PwmInputModulationTimer<T>
+    where
+        T: CaptureCompare16bitInstance,
+    {
+        pub fn try_new<'d>(
+            mut tim: T,
+            output_pin: PwmPin<'d, T, Ch1>,
+            input_pin: PwmPin<'d, T, Ch2>,
+            uart_frequency: Hertz,
+        ) -> Result<Self, PwmError> {
+            T::enable();
+            tim.reset();
+            tim.set_frequency(uart_frequency);
+            tim.start();
+
+            unsafe {
+                tim.enable_outputs(true);
+
+                let max_arr = tim.get_max_compare_value();
+
+                tim.set_compare_value(Channel::Ch1, max_arr)
+            }
+
+            let regs = T::regs_gp16();
+            let mut this = Self { tim };
+
+            unsafe {
+                this.setup_input_trigger();
+                this.setup_output()
+            }
+
+            unsafe {
+                // TODO set output compare mode
+            }
+
+            Ok(this)
+        }
+        unsafe fn setup_input_trigger(&mut self) {
+            // page 1201 of stm32l5 reference manual -> configure channel to detect falling edge
+            //Select the active input: TIMx_CCR1 must be linked to the TI1 input, so write the CC1S
+            // bits to 01 in the TIMx_CCMR1 register
+
+            let regs = T::regs_gp16();
+            regs.ccmr_input(0)
+                .modify(|ccmr| ccmr.set_ccs(1, CcmrInputCcs(1)));
+            // Program the appropriate input filter duration in relation with the signal connected to the
+            // timer
+            regs.ccmr_input(0)
+                .modify(|ccmr| ccmr.set_icf(1, Icf::NOFILTER));
+
+            //select positive polarity
+            regs.ccer().modify(|ccer| {
+                ccer.set_ccp(0, true);
+                ccer.set_ccnp(0, false)
+            });
+
+            // enable capture from the counter into the capture register  by setting the CC1E bit in the
+            //TIMx_CCER register.
+            self.tim.enable_channel(Channel::Ch2, true);
+            // regs.ccer().modify(|ccer| ccer.set_cce(0, true));
+
+            // /2. Configure the timer in reset mode by writing SMS=100 in TIMx_SMCR register. Select
+            // TI2 as the input source by writing TS=110 in TIMx_SMCR register
+
+            regs.smcr().modify(|smcr| {
+                smcr.set_ts(Ts::TI2FP2);
+                // The timer must be in Slave mode, with the bits SMS[3:0] = ‘1000’ (Combined Reset + trigger mode) p. 1213
+                smcr.set_sms(Sms(0b1000))
+            });
+        }
+
+        unsafe fn setup_output(&mut self) {
+            self.tim
+                .set_output_compare_mode(Channel::Ch1, OutputCompareMode::PwmMode2);
+            self.tim.enable_channel(Channel::Ch1, true);
+        }
+    }
 }
