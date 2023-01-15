@@ -10,7 +10,8 @@ pub mod pwm_uart {
     use core::mem;
     use defmt::info;
     use embassy_futures::select::{select, Either};
-    use embassy_stm32::pac::timer::vals::{CcmrInputCcs, Icf, Opm, Sms, Ts};
+    use embassy_stm32::pac::timer::regs::CcmrOutput;
+    use embassy_stm32::pac::timer::vals::{CcmrInputCcs, Icf, Ocm, Opm, Sms, Ts};
     use embassy_stm32::pwm::simple_pwm::{Ch1, Ch2, PwmPin, SimplePwm};
     use embassy_stm32::time::Hertz;
     use embassy_stm32::usart::BasicInstance;
@@ -115,6 +116,50 @@ pub mod pwm_uart {
     // tim3 for transmission timer
     // tx timer input: A7
     // tx timer output: A6
+    mod sealed {
+
+        use super::*;
+
+        pub trait RetriggerableOPMTimer: CaptureCompare16bitInstance {
+            unsafe fn enable_combined_reset_and_trigger() {
+                let regs = Self::regs_gp16();
+                const SMS_POS: u32 = 16;
+
+                regs.smcr().modify(|smcr| {
+                    smcr.0 |= (1 << SMS_POS);
+                });
+            }
+            unsafe fn set_retriggerable_opm_mode(channel: Channel, mode: RetriggerableOpmMode) {
+                let r = Self::regs_gp16();
+                let raw_channel: usize = channel.raw();
+                r.ccmr_output(raw_channel / 2)
+                    .modify(|w| set_ocm_retriggerable(w, raw_channel % 2, mode));
+            }
+        }
+    }
+    unsafe fn set_ocm_retriggerable(ccmro: &mut CcmrOutput, n: usize, mode: RetriggerableOpmMode) {
+        let ocm_bit = 16 + n * 8usize;
+        let offs = 4usize + n * 8usize;
+        ccmro.0 =
+            (ccmro.0 & !(0b111 << offs)) | (((mode.raw() as u32) & 0b111) << offs) | (1 << ocm_bit);
+    }
+
+    #[derive(Clone, Copy)]
+    pub enum RetriggerableOpmMode {
+        Mode1,
+        Mode2,
+    }
+
+    impl RetriggerableOpmMode {
+        pub fn raw(&self) -> u32 {
+            match self {
+                RetriggerableOpmMode::Mode1 => 0b1000,
+                RetriggerableOpmMode::Mode2 => 0b1001,
+            }
+        }
+    }
+
+    pub trait RetriggerableOPMTimer: sealed::RetriggerableOPMTimer {}
 
     pub struct PwmInputModulationTimer<T: CaptureCompare16bitInstance> {
         tim: T,
@@ -179,8 +224,8 @@ pub mod pwm_uart {
 
             //seelct only the negative transition of uart (uart is usually inverted :) )
             regs.ccer().modify(|ccer| {
-                ccer.set_ccp(1, false);
-                ccer.set_ccnp(1, false)
+                ccer.set_ccp(0, false);
+                ccer.set_ccnp(0, false)
             });
 
             // enable capture from the counter into the capture register  by setting the CC1E bit in the
@@ -193,17 +238,28 @@ pub mod pwm_uart {
 
             regs.smcr().modify(|smcr| {
                 smcr.set_ts(Ts::TI2FP2);
-                smcr.set_sms(Sms::TRIGGER_MODE)
+            });
+            const SMS_POS: u32 = 16;
+
+            regs.smcr().modify(|smcr| {
+                smcr.0 |= 1 << SMS_POS;
             });
         }
 
         unsafe fn setup_output(&mut self) {
-            self.tim
-                .set_output_compare_mode(Channel::Ch1, OutputCompareMode::PwmMode2);
+            // self.tim
+            //     .set_output_compare_mode(Channel::Ch1, OutputCompareMode::PwmMode2);
 
             let mut regs = T::regs_gp16();
-            regs.ccr(0).modify(|ccr1| ccr1.set_ccr(1));
+            // regs.ccmr_output(0)
+            //     .modify(|ccmr| ccmr.set_ocm(0, Ocm(0b1001)));
+            regs.ccr(0).modify(|ccr1| ccr1.set_ccr(0));
             regs.cr1().modify(|cr1| cr1.set_opm(Opm::ENABLED));
+
+            let raw_channel: usize = Channel::Ch1.raw();
+            regs.ccmr_output(raw_channel / 2)
+                .modify(|w| set_ocm_retriggerable(w, raw_channel % 2, RetriggerableOpmMode::Mode2));
+
             self.tim.enable_channel(Channel::Ch1, true);
             regs.egr().write(|egr| egr.set_ug(true));
         }
