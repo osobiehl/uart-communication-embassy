@@ -257,6 +257,11 @@ pub mod pwm_uart {
             regs.cr1().modify(|cr1| cr1.set_opm(Opm::ENABLED));
 
             let raw_channel: usize = Channel::Ch1.raw();
+            regs.ccer().modify(|ccer| {
+                ccer.set_ccp(1, true);
+                ccer.set_ccnp(1, true)
+            });
+
             regs.ccmr_output(raw_channel / 2)
                 .modify(|w| set_ocm_retriggerable(w, raw_channel % 2, RetriggerableOpmMode::Mode2));
 
