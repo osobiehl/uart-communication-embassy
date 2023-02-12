@@ -1,0 +1,14 @@
+[package]
+name = "std-simulation"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embassy-net = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "nightly", "tcp", "dhcpv4", "medium-ethernet", "udp", "std"] }
+embassy-net-driver-channel = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
+embassy-net-driver = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy" }
+tokio = { version = "1", features = ["full"] }
+communication = { version= "0.1.0", path = "../communication"}
+log = "0.4.17"

@@ -1,0 +1,21 @@
+{
+    "editor.formatOnSave": true,
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.checkOnSave.noDefaultFeatures": true,
+    "rust-analyzer.cargo.noDefaultFeatures": true,
+    "rust-analyzer.procMacro.enable": true,
+    // "rust-analyzer.cargo.target": "thumbv8m.main-none-eabihf",
+    "rust-analyzer.cargo.features": [
+        // "nightly",
+    ],
+    "rust-analyzer.imports.granularity.enforce": true,
+    "rust-analyzer.imports.granularity.group": "module",
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.procMacro.attributes.enable": true,
+    // "rust-analyzer.linkedProjects": [
+    //     // Declare for the target you wish to develop
+    //     // "embassy-executor/Cargo.toml",
+    //     // "embassy-sync/Cargo.toml",
+    //     "src/stm32/Cargo.toml",
+    // ]
+}
